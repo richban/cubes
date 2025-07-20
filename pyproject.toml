@@ -30,7 +30,9 @@ dependencies = [
     "python-dateutil",
     "jsonschema",
     "expressions>=0.2.3",
-    "setuptools"
+    "setuptools",
+    "marimo>=0.14.12",
+    "pydantic>=2.0.0",
 ]
 
 [project.optional-dependencies]
