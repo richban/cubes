@@ -1,10 +1,5 @@
 """Logical model."""
 
-
-
-
-
-
 __all__ = [
     "ModelObject",
     "Cube",

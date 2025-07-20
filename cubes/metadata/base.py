@@ -14,6 +14,7 @@ from .. import compat
 from ..common import IgnoringDictionary, to_label
 from ..errors import ArgumentError, CubesError, ModelError
 
+
 __all__ = (
     "ModelObject",
     "read_model_metadata",
@@ -44,7 +45,9 @@ class ModelObject:
         self.description = description
         self.info = info or {}
 
-    def to_dict(self, create_label: bool | None = None, **options: Any) -> dict[str, Any]:
+    def to_dict(
+        self, create_label: bool | None = None, **options: Any
+    ) -> dict[str, Any]:
         """Convert to a dictionary. If `with_mappings` is ``True`` (which is
         default) then `joins`, `mappings`, `fact` and `options` are included.
         Should be set to ``False`` when returning a dictionary that will be

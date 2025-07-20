@@ -2,7 +2,6 @@
 
 from collections import OrderedDict, defaultdict
 
-from .. import compat
 from ..common import assert_all_instances, get_localizable_attributes
 from ..errors import (
     ArgumentError,
@@ -248,7 +247,7 @@ class Cube(ModelObject):
         # Run-time properties
         # Sets in the Namespace.cube() when cube is created
         # Used by workspace internally to search for dimensions
-        if isinstance(store, compat.string_type):
+        if isinstance(store, str):
             self.store_name = store
             self.store = None
         else:
@@ -318,9 +317,7 @@ class Cube(ModelObject):
         try:
             return self._measures[name]
         except KeyError:
-            raise NoSuchAttributeError(
-                f"Cube '{self.name}' has no measure '{name}'"
-            )
+            raise NoSuchAttributeError(f"Cube '{self.name}' has no measure '{name}'")
 
     def get_measures(self, measures):
         """Get a list of measures as `Attribute` objects. If `measures` is
@@ -487,9 +484,7 @@ class Cube(ModelObject):
             if measure.name == name:
                 return measure
 
-        raise NoSuchAttributeError(
-            f"Cube '{self.name}' has no attribute '{attribute}'"
-        )
+        raise NoSuchAttributeError(f"Cube '{self.name}' has no attribute '{attribute}'")
 
     def get_attributes(self, attributes=None, aggregated=False):
         """Returns a list of cube's attributes. If `aggregated` is `True` then
@@ -605,9 +600,7 @@ class Cube(ModelObject):
         try:
             return self._dimensions[str(name)]
         except KeyError:
-            raise NoSuchDimensionError(
-                f"cube '{self.name}' has no dimension '{name}'"
-            )
+            raise NoSuchDimensionError(f"cube '{self.name}' has no dimension '{name}'")
 
     @property
     def distilled_hierarchies(self):
@@ -826,7 +819,7 @@ def expand_dimension_links(metadata):
     links = []
 
     for link in metadata:
-        if isinstance(link, compat.string_type):
+        if isinstance(link, str):
             link = {"name": link}
         elif "name" not in link:
             raise ModelError("Dimension link has no name")
