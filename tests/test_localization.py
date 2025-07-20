@@ -3,7 +3,7 @@ from cubes import Namespace
 from cubes import StaticModelProvider
 from cubes import read_json_file
 from cubes.metadata.localization import LocalizationContext, ModelObjectLocalizationContext
-from .common import CubesTestCaseBase
+from tests.common import CubesTestCaseBase
 
 class LocalizationTestCase(CubesTestCaseBase):
     def setUp(self):

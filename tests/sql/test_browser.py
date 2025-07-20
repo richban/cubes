@@ -1,5 +1,5 @@
 # -*- encoding: utf-8 -*-
-from __future__ import absolute_import
+
 
 from unittest import TestCase, skip
 import sqlalchemy as sa
@@ -11,7 +11,7 @@ from cubes.sql.mapper import map_base_attributes, StarSchemaMapper
 from cubes.sql.mapper import distill_naming
 
 from .dw.demo import create_demo_dw, TinyDemoModelProvider
-from .common import SQLTestCase
+from tests.sql.common import SQLTestCase
 
 #
 # TODO: this should be workspace-free test
@@ -62,16 +62,15 @@ class SQLQueryContextTestCase(SQLTestCase):
         return self.dw.table(name)
 
     def execute(self, *args, **kwargs):
-        return self.dw.engine.execute(*args, **kwargs)
+        with self.dw.engine.connect() as conn:
+            return conn.execute(*args, **kwargs).mappings()
 
 class SQLStatementsTestCase(SQLQueryContextTestCase):
     """"Test basic SQL statement generation in the browser."""
     def setUp(self):
         super(SQLStatementsTestCase, self).setUp()
 
-        attrs = self.dimension("item").attributes
-        attrs += self.dimension("category").attributes
-        attrs += self.dimension("date").attributes
+        attrs = self.cube.get_attributes(["item.name", "item.key", "category.name", "date.year", "date.month", "date.day", "department.name", "item_unit_price"])
 
         self.context = self.create_context(attrs)
 
@@ -79,9 +78,7 @@ class SQLStatementsTestCase(SQLQueryContextTestCase):
         """Returns a select statement from the star view"""
         columns = [self.star.column(attr) for attr in attrs]
 
-        return sa.select(columns,
-                         from_obj=self.context.star,
-                         whereclause=whereclause)
+        return sa.select(*columns).select_from(self.context.star).where(whereclause)
 
     def test_attribute_column(self):
         """Test proper selection of attribute column."""

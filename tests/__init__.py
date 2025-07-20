@@ -1,11 +1,7 @@
-from __future__ import absolute_import
+
 
 import unittest
 import os
-
-from cubes.compat import py3k
-if not py3k:
-    unittest.TestCase.assertRaisesRegex = unittest.TestCase.assertRaisesRegexp
 
 from . import sql
 

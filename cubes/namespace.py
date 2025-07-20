@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import absolute_import
 
 from .errors import NoSuchCubeError, NoSuchDimensionError, ModelError
 from .common import read_json_file
@@ -9,6 +8,7 @@ from . import compat
 __all__ = [
     "Namespace",
 ]
+
 
 class Namespace(object):
     def __init__(self, name=None, parent=None):
@@ -42,7 +42,7 @@ class Namespace(object):
 
         namespace = self
         for i, element in enumerate(path):
-            remainder = path[i+1:]
+            remainder = path[i + 1 :]
             if element in namespace.namespaces:
                 namespace = namespace.namespaces[element]
                 found = True
@@ -107,11 +107,9 @@ class Namespace(object):
             provider = None
 
         if not provider:
-            raise NoSuchCubeError("Unknown cube '{}'".format(cube_ref),
-                                  cube_ref)
+            raise NoSuchCubeError("Unknown cube '{}'".format(cube_ref), cube_ref)
 
         return (namespace, provider, basename)
-
 
     def list_cubes(self, recursive=False):
         """Retursn a list of cube info dictionaries with keys: `name`,
@@ -131,7 +129,7 @@ class Namespace(object):
             all_cubes += cubes
 
         if recursive:
-            for name, ns in self.namespaces.items():
+            for name, ns in list(self.namespaces.items()):
                 cubes = ns.list_cubes(recursive=True)
                 for cube in cubes:
                     cube["name"] = "%s.%s" % (name, cube["name"])
@@ -147,8 +145,7 @@ class Namespace(object):
         for provider in self.providers:
             # TODO: use locale
             try:
-                dim = provider.dimension(name, locale=locale,
-                                         templates=templates)
+                dim = provider.dimension(name, locale=locale, templates=templates)
             except NoSuchDimensionError:
                 pass
             else:
@@ -195,4 +192,3 @@ class Namespace(object):
             ns = ns.parent
 
         return lookup
-

@@ -16,37 +16,37 @@ __all__ = [
     "condition_conjunction",
     "order_column",
     "order_query",
-    "paginate_query"
+    "paginate_query",
 ]
+
 
 class CreateTableAsSelect(Executable, ClauseElement):
     def __init__(self, table, select):
         self.table = table
         self.select = select
 
+
 @compiles(CreateTableAsSelect)
 def visit_create_table_as_select(element, compiler, **kw):
     preparer = compiler.dialect.preparer(compiler.dialect)
     full_name = preparer.format_table(element.table)
 
-    return "CREATE TABLE %s AS (%s)" % (
-        element.table,
-        compiler.process(element.select)
-    )
+    return "CREATE TABLE %s AS (%s)" % (element.table, compiler.process(element.select))
+
+
 @compiles(CreateTableAsSelect, "sqlite")
 def visit_create_table_as_select(element, compiler, **kw):
     preparer = compiler.dialect.preparer(compiler.dialect)
     full_name = preparer.format_table(element.table)
 
-    return "CREATE TABLE %s AS %s" % (
-        element.table,
-        compiler.process(element.select)
-    )
+    return "CREATE TABLE %s AS %s" % (element.table, compiler.process(element.select))
+
 
 class CreateOrReplaceView(Executable, ClauseElement):
     def __init__(self, view, select):
         self.view = view
         self.select = select
+
 
 @compiles(CreateOrReplaceView)
 def visit_create_or_replace_view(element, compiler, **kw):
@@ -55,18 +55,17 @@ def visit_create_or_replace_view(element, compiler, **kw):
 
     return "CREATE OR REPLACE VIEW %s AS (%s)" % (
         full_name,
-        compiler.process(element.select)
+        compiler.process(element.select),
     )
+
 
 @compiles(CreateOrReplaceView, "sqlite")
 def visit_create_or_replace_view(element, compiler, **kw):
     preparer = compiler.dialect.preparer(compiler.dialect)
     full_name = preparer.format_table(element.view)
 
-    return "CREATE VIEW %s AS %s" % (
-        full_name,
-        compiler.process(element.select)
-    )
+    return "CREATE VIEW %s AS %s" % (full_name, compiler.process(element.select))
+
 
 @compiles(CreateOrReplaceView, "mysql")
 def visit_create_or_replace_view(element, compiler, **kw):
@@ -75,7 +74,7 @@ def visit_create_or_replace_view(element, compiler, **kw):
 
     return "CREATE OR REPLACE VIEW %s AS %s" % (
         full_name,
-        compiler.process(element.select)
+        compiler.process(element.select),
     )
 
 
@@ -131,7 +130,7 @@ def order_query(statement, order, natural_order=None, labels=None):
     # Get logical attributes from column labels (see logical_labels
     # description for more information why this step is necessary)
 
-    columns = OrderedDict(zip(labels, statement.columns))
+    columns = OrderedDict(list(zip(labels, statement.selected_columns)))
 
     # Normalize order
     # ---------------
@@ -139,7 +138,7 @@ def order_query(statement, order, natural_order=None, labels=None):
     # `order`). If element of the `order` list is a string, then it is
     # converted to (`string`, ``None``).
 
-    if SPLIT_DIMENSION_NAME in statement.columns:
+    if SPLIT_DIMENSION_NAME in [c.name for c in statement.selected_columns]:
         split_column = sql.expression.column(SPLIT_DIMENSION_NAME)
         final_order[SPLIT_DIMENSION_NAME] = split_column
 
@@ -153,11 +152,10 @@ def order_query(statement, order, natural_order=None, labels=None):
 
     # Collect natural order for selected columns that have no explicit
     # ordering
-    for (name, column) in columns.items():
+    for name, column in list(columns.items()):
         if name in natural_order and name not in order_by:
             final_order[name] = order_column(column, natural_order[name])
 
-    statement = statement.order_by(*final_order.values())
+    statement = statement.order_by(*list(final_order.values()))
 
     return statement
-

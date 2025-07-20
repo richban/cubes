@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict
 from textwrap import dedent
-from pkg_resources import iter_entry_points
+from importlib.metadata import entry_points
 
 from .common import decamelize, coalesce_options
 from .errors import ArgumentError, InternalError, BackendError
@@ -43,34 +43,34 @@ _BUILTIN_EXTENSIONS = {
         "simple": "cubes.auth:SimpleAuthorizer",
     },
     "browsers": {
-        "sql":"cubes.sql.browser:SQLBrowser",
-        "slicer":"cubes.server.browser:SlicerBrowser",
+        "sql": "cubes.sql.browser:SQLBrowser",
+        "slicer": "cubes.server.browser:SlicerBrowser",
     },
     "formatters": {
         "cross_table": "cubes.formatters:CrossTableFormatter",
         "csv": "cubes.formatters:CSVFormatter",
-        'xlsx': 'cubes.formatters:XLSXFormatter',
+        "xlsx": "cubes.formatters:XLSXFormatter",
         "html_cross_table": "cubes.formatters:HTMLCrossTableFormatter",
     },
     "providers": {
-        "default":"cubes.metadata.providers:StaticModelProvider",
-        "slicer":"cubes.server.store:SlicerModelProvider",
+        "default": "cubes.metadata.providers:StaticModelProvider",
+        "slicer": "cubes.server.store:SlicerModelProvider",
     },
     "request_log_handlers": {
         "default": "cubes.server.logging:DefaultRequestLogHandler",
         "csv": "cubes.server.logging:CSVFileRequestLogHandler",
-        'xlsx': 'cubes.server.logging:XLSXFileRequestLogHandler',
+        "xlsx": "cubes.server.logging:XLSXFileRequestLogHandler",
         "json": "cubes.server.logging:JSONRequestLogHandler",
         "sql": "cubes.sql.logging:SQLRequestLogger",
     },
     "stores": {
-        "sql":"cubes.sql.store:SQLStore",
-        "slicer":"cubes.server.store:SlicerStore",
+        "sql": "cubes.sql.store:SQLStore",
+        "slicer": "cubes.server.store:SlicerStore",
     },
 }
 
-_DEFAULT_OPTIONS = {
-}
+_DEFAULT_OPTIONS = {}
+
 
 class _Extension(object):
     """
@@ -85,14 +85,20 @@ class _Extension(object):
     * `label` – human readable label (optional)
     * `values` – valid values for the option.
     """
+
     def __init__(self, type_, entry=None, factory=None, name=None):
         if factory is not None and entry is not None:
-            raise ArgumentError("Can't set both extension factory and entry "
-                                "(in extension '{}')".format(name))
+            raise ArgumentError(
+                "Can't set both extension factory and entry (in extension '{}')".format(
+                    name
+                )
+            )
 
         elif factory is None and entry is None:
-            raise ArgumentError("Neither extension factory nor entry provided "
-                                "(in extension '{}')".format(name))
+            raise ArgumentError(
+                "Neither extension factory nor entry provided "
+                "(in extension '{}')".format(name)
+            )
 
         self.type_ = type_
         self.entry = entry
@@ -115,8 +121,9 @@ class _Extension(object):
             self.factory = self.entry.load()
             return self._factory
         else:
-            raise InternalError("No factory or entry set for extension '{}'"
-                                .format(self.name))
+            raise InternalError(
+                "No factory or entry set for extension '{}'".format(self.name)
+            )
 
     @factory.setter
     def factory(self, factory):
@@ -162,8 +169,7 @@ class _Extension(object):
         """Creates an extension. First argument should be extension's name."""
         factory = self.factory
 
-        kwargs = coalesce_options(dict(kwargs),
-                                  self.option_types)
+        kwargs = coalesce_options(dict(kwargs), self.option_types)
 
         return factory(*args, **kwargs)
 
@@ -178,7 +184,7 @@ class ExtensionFinder(object):
 
     def discover(self, name=None):
         """Find all entry points."""
-        for obj in iter_entry_points(group=self.group, name=name):
+        for obj in entry_points(group=self.group, name=name):
             ext = _Extension(self.type_, obj)
             self.extensions[ext.name] = ext
 
@@ -202,7 +208,7 @@ class ExtensionFinder(object):
             self.discover()
 
         names = list(self.builtins.keys())
-        names += self.extensions.keys()
+        names += list(self.extensions.keys())
 
         return sorted(names)
 
@@ -219,8 +225,9 @@ class ExtensionFinder(object):
             try:
                 ext = self.extensions[name]
             except KeyError:
-                raise InternalError("Unknown '{}' extension '{}'"
-                                    .format(self.type_, name))
+                raise InternalError(
+                    "Unknown '{}' extension '{}'".format(self.type_, name)
+                )
         return ext
 
     def __call__(self, _ext_name, *args, **kwargs):
@@ -231,8 +238,7 @@ class ExtensionFinder(object):
         ext = self.get(name)
 
         if not ext.factory:
-            raise BackendError("Unable to get factory for extension '{}'"
-                               .format(name))
+            raise BackendError("Unable to get factory for extension '{}'".format(name))
 
         return ext.factory
 

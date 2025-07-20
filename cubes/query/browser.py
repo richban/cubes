@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import absolute_import
 
 from collections import namedtuple
 
@@ -22,18 +21,16 @@ __all__ = [
     "AggregationResult",
     "CalculatedResultIterator",
     "Facts",
-
     "Drilldown",
     "DrilldownItem",
     "levels_from_drilldown",
-
     "TableRow",
     "SPLIT_DIMENSION_NAME",
 ]
 
 
-SPLIT_DIMENSION_NAME = '__within_split__'
-NULL_PATH_VALUE = '__null__'
+SPLIT_DIMENSION_NAME = "__within_split__"
+NULL_PATH_VALUE = "__null__"
 
 
 class AggregationBrowser(object):
@@ -51,7 +48,7 @@ class AggregationBrowser(object):
 
     def __init__(self, cube, store=None, locale=None, **options):
         """Creates and initializes the aggregation browser. Subclasses should
-        override this method. """
+        override this method."""
         super(AggregationBrowser, self).__init__()
 
         if not cube:
@@ -76,9 +73,17 @@ class AggregationBrowser(object):
         """
         return {}
 
-    def aggregate(self, cell=None, aggregates=None, drilldown=None, split=None,
-                  order=None, page=None, page_size=None, **options):
-
+    def aggregate(
+        self,
+        cell=None,
+        aggregates=None,
+        drilldown=None,
+        split=None,
+        order=None,
+        page=None,
+        page_size=None,
+        **options,
+    ):
         """Return aggregate of a cell.
 
         Arguments:
@@ -127,44 +132,43 @@ class AggregationBrowser(object):
         aggregates = self.prepare_aggregates(aggregates)
         order = self.prepare_order(order, is_aggregate=True)
 
-        converters = {
-            "time": CalendarMemberConverter(self.calendar)
-        }
+        converters = {"time": CalendarMemberConverter(self.calendar)}
 
         if cell is None:
             cell = Cell(self.cube)
         elif isinstance(cell, compat.string_type):
-            cuts = cuts_from_string(self.cube, cell,
-                                    role_member_converters=converters)
+            cuts = cuts_from_string(self.cube, cell, role_member_converters=converters)
             cell = Cell(self.cube, cuts)
 
         if isinstance(split, compat.string_type):
-            cuts = cuts_from_string(self.cube, split,
-                                    role_member_converters=converters)
+            cuts = cuts_from_string(self.cube, split, role_member_converters=converters)
             split = Cell(self.cube, cuts)
 
         drilldon = Drilldown(drilldown, cell)
 
-        result = self.provide_aggregate(cell,
-                                        aggregates=aggregates,
-                                        drilldown=drilldon,
-                                        split=split,
-                                        order=order,
-                                        page=page,
-                                        page_size=page_size,
-                                        **options)
+        result = self.provide_aggregate(
+            cell,
+            aggregates=aggregates,
+            drilldown=drilldon,
+            split=split,
+            order=order,
+            page=page,
+            page_size=page_size,
+            **options,
+        )
 
         #
         # Find post-aggregation calculations and decorate the result
         #
-        calculated_aggs = [agg for agg in aggregates
-                           if agg.function and \
-                                not self.is_builtin_function(agg.function)]
+        calculated_aggs = [
+            agg
+            for agg in aggregates
+            if agg.function and not self.is_builtin_function(agg.function)
+        ]
 
-        result.calculators = calculators_for_aggregates(self.cube,
-                                                        calculated_aggs,
-                                                        drilldown,
-                                                        split)
+        result.calculators = calculators_for_aggregates(
+            self.cube, calculated_aggs, drilldown, split
+        )
 
         # Do calculated measures on summary if no drilldown or split
         if result.summary:
@@ -173,9 +177,18 @@ class AggregationBrowser(object):
 
         return result
 
-    def provide_aggregate(self, cell=None, measures=None, aggregates=None,
-                          drilldown=None, split=None, order=None, page=None,
-                          page_size=None, **options):
+    def provide_aggregate(
+        self,
+        cell=None,
+        measures=None,
+        aggregates=None,
+        drilldown=None,
+        split=None,
+        order=None,
+        page=None,
+        page_size=None,
+        **options,
+    ):
         """Method to be implemented by subclasses. The arguments are prepared
         by the superclass. Arguments:
 
@@ -188,8 +201,9 @@ class AggregationBrowser(object):
         * `order` – list of tuples: (`attribute`, `order`)
 
         """
-        raise NotImplementedError("{} does not provide aggregate functionality." \
-                                  .format(str(type(self))))
+        raise NotImplementedError(
+            "{} does not provide aggregate functionality.".format(str(type(self)))
+        )
 
     def prepare_aggregates(self, aggregates=None, measures=None):
         """Prepares the aggregate list for aggregatios. `aggregates` might be a
@@ -215,14 +229,16 @@ class AggregationBrowser(object):
         # TODO: perhaps we might merge (without duplicates)
 
         if aggregates and measures:
-            raise ArgumentError("Only aggregates or measures can be "
-                                "specified, not both")
+            raise ArgumentError(
+                "Only aggregates or measures can be specified, not both"
+            )
         if aggregates:
             try:
                 aggregates = self.cube.get_aggregates(aggregates)
             except KeyError as e:
-                raise NoSuchAttributeError("No measure aggregate '%s' in cube '%s'"
-                                           % (str(e), str(self.cube)))
+                raise NoSuchAttributeError(
+                    "No measure aggregate '%s' in cube '%s'" % (str(e), str(self.cube))
+                )
         elif measures:
             aggregates = []
             for measure in measures:
@@ -236,18 +252,20 @@ class AggregationBrowser(object):
 
         # Resolve aggregate dependencies for non-builtin functions:
         for agg in aggregates:
-            if agg.measure and \
-                    not self.is_builtin_function(agg.function) \
-                    and agg.measure not in seen:
+            if (
+                agg.measure
+                and not self.is_builtin_function(agg.function)
+                and agg.measure not in seen
+            ):
                 seen.add(agg.measure)
 
                 try:
                     aggregate = self.cube.aggregate(agg.measure)
                 except NoSuchAttributeError as e:
-                    raise NoSuchAttributeError("Cube '%s' has no measure aggregate "
-                                            "'%s' for '%s'" % (self.cube.name,
-                                                               agg.measure,
-                                                               agg.name))
+                    raise NoSuchAttributeError(
+                        "Cube '%s' has no measure aggregate "
+                        "'%s' for '%s'" % (self.cube.name, agg.measure, agg.name)
+                    )
                 dependencies.append(aggregate)
 
         aggregates += dependencies
@@ -303,11 +321,11 @@ class AggregationBrowser(object):
         if hc_levels:
             names = [str(level) for level in hc_levels]
             names = ", ".join(names)
-            raise ArgumentError("Can not drilldown on high-cardinality "
-                                "levels (%s) without including both page_size "
-                                "and page arguments, or else a point/set cut on the level"
-                                % names)
-
+            raise ArgumentError(
+                "Can not drilldown on high-cardinality "
+                "levels (%s) without including both page_size "
+                "and page arguments, or else a point/set cut on the level" % names
+            )
 
     def is_builtin_function(self, function_name):
         """Returns `True` if function `function_name` is bult-in. Returns
@@ -327,17 +345,29 @@ class AggregationBrowser(object):
 
         Subclasses overriding this method sould return a :class:`Facts` object
         and set it's `attributes` to the list of selected attributes."""
-        raise NotImplementedError("{} does not provide facts functionality." \
-                                  .format(str(type(self))))
+        raise NotImplementedError(
+            "{} does not provide facts functionality.".format(str(type(self)))
+        )
 
     def fact(self, key):
         """Returns a single fact from cube specified by fact key `key`"""
-        raise NotImplementedError("{} does not provide fact functionality." \
-                                  .format(str(type(self))))
+        raise NotImplementedError(
+            "{} does not provide fact functionality.".format(str(type(self)))
+        )
 
-    def members(self, cell, dimension, depth=None, level=None, hierarchy=None,
-                attributes=None, page=None, page_size=None, order=None,
-                **options):
+    def members(
+        self,
+        cell,
+        dimension,
+        depth=None,
+        level=None,
+        hierarchy=None,
+        attributes=None,
+        page=None,
+        page_size=None,
+        order=None,
+        **options,
+    ):
         """Return members of `dimension` with level depth `depth`. If `depth`
         is ``None``, all levels are returned. If no `hierarchy` is specified,
         then default dimension hierarchy is used.
@@ -361,28 +391,32 @@ class AggregationBrowser(object):
             levels = hierarchy.levels_for_depth(depth)
         else:
             index = hierarchy.level_index(level)
-            levels = hierarchy.levels_for_depth(index+1)
+            levels = hierarchy.levels_for_depth(index + 1)
 
-        result = self.provide_members(cell,
-                                      dimension=dimension,
-                                      hierarchy=hierarchy,
-                                      levels=levels,
-                                      attributes=attributes,
-                                      order=order,
-                                      page=page,
-                                      page_size=page_size,
-                                      **options)
+        result = self.provide_members(
+            cell,
+            dimension=dimension,
+            hierarchy=hierarchy,
+            levels=levels,
+            attributes=attributes,
+            order=order,
+            page=page,
+            page_size=page_size,
+            **options,
+        )
         return result
 
     def provide_members(self, *args, **kwargs):
-        raise NotImplementedError("{} does not provide members functionality." \
-                                  .format(str(type(self))))
+        raise NotImplementedError(
+            "{} does not provide members functionality.".format(str(type(self)))
+        )
 
     def test(self, **options):
         """Tests whether the cube can be used. Refer to the backend's
         documentation for more information about what is being tested."""
-        raise NotImplementedError("{} does not provide test functionality." \
-                                  .format(str(type(self))))
+        raise NotImplementedError(
+            "{} does not provide test functionality.".format(str(type(self)))
+        )
 
     def report(self, cell, queries):
         """Bundle multiple requests from `queries` into a single one.
@@ -465,7 +499,7 @@ class AggregationBrowser(object):
 
         report_result = {}
 
-        for result_name, query in queries.items():
+        for result_name, query in list(queries.items()):
             query_type = query.get("query")
             if not query_type:
                 raise ArgumentError("No report query for '%s'" % result_name)
@@ -515,8 +549,9 @@ class AggregationBrowser(object):
 
                 result = cell_dict
             else:
-                raise ArgumentError("Unknown report query '%s' for '%s'" %
-                                    (query_type, result_name))
+                raise ArgumentError(
+                    "Unknown report query '%s' for '%s'" % (query_type, result_name)
+                )
 
             report_result[result_name] = result
 
@@ -545,8 +580,7 @@ class AggregationBrowser(object):
             return []
 
         if dimension:
-            cuts = [cut for cut in cell.cuts
-                    if str(cut.dimension) == str(dimension)]
+            cuts = [cut for cut in cell.cuts if str(cut.dimension) == str(dimension)]
         else:
             cuts = cell.cuts
 
@@ -570,13 +604,14 @@ class AggregationBrowser(object):
             details = self._path_details(dimension, cut.path, cut.hierarchy)
 
         elif isinstance(cut, SetCut):
-            details = [self._path_details(dimension, path, cut.hierarchy) for path in cut.paths]
+            details = [
+                self._path_details(dimension, path, cut.hierarchy) for path in cut.paths
+            ]
 
         elif isinstance(cut, RangeCut):
             details = {
-                "from": self._path_details(dimension, cut.from_path,
-                                           cut.hierarchy),
-                "to": self._path_details(dimension, cut.to_path, cut.hierarchy)
+                "from": self._path_details(dimension, cut.from_path, cut.hierarchy),
+                "to": self._path_details(dimension, cut.to_path, cut.hierarchy),
             }
 
         else:
@@ -615,8 +650,7 @@ class AggregationBrowser(object):
         else:
             result = []
             for level in hierarchy.levels_for_path(path):
-                item = {a.ref: details.get(a.ref) for a in
-                        level.attributes}
+                item = {a.ref: details.get(a.ref) for a in level.attributes}
                 item["_key"] = details.get(level.key.ref)
                 item["_label"] = details.get(level.label_attribute.ref)
                 result.append(item)
@@ -638,6 +672,7 @@ class AggregationBrowser(object):
 
         return detail
 
+
 class Facts(object):
     def __init__(self, facts, attributes):
         """A facts iterator object returned by the browser's `facts()`
@@ -657,6 +692,7 @@ class CalculatedResultIterator(object):
     """
     Iterator that decorates data items
     """
+
     def __init__(self, calculators, iterator):
         self.calculators = calculators
         self.iterator = iterator
@@ -672,6 +708,7 @@ class CalculatedResultIterator(object):
         return item
 
     next = __next__
+
 
 class AggregationResult(object):
     """Result of aggregation or drill down.
@@ -695,8 +732,8 @@ class AggregationResult(object):
         `measures` and `levels` from the aggregate query.
 
     """
-    def __init__(self, cell=None, aggregates=None, drilldown=None,
-                 has_split=False):
+
+    def __init__(self, cell=None, aggregates=None, drilldown=None, has_split=False):
         """Create an aggergation result object. `cell` – a :class:`cubes.Cell`
         object used for this aggregation, `aggregates` – list of aggregate
         objects selected for this a aggregation, `drilldown` – a
@@ -767,7 +804,6 @@ class AggregationResult(object):
         d.set("attributes", self.attributes)
         d["has_split"] = self.has_split
 
-
         return d
 
     def has_dimension(self, dimension):
@@ -795,7 +831,7 @@ class AggregationResult(object):
         Example use::
 
             for row in result.table_rows(dimension):
-                print "%s: %s" % (row.label, row.record["fact_count"])
+                print(f"{row.label}: {row.record['fact_count']}")
 
         `dimension` has to be :class:`cubes.Dimension` object. Raises
         `TypeError` when cut for `dimension` is not `PointCut`.
@@ -829,11 +865,9 @@ class AggregationResult(object):
         for record in self.cells:
             drill_path = path[:] + [record[level_key]]
 
-            row = TableRow(record[level_key],
-                           record[level_label],
-                           drill_path,
-                           is_base,
-                           record)
+            row = TableRow(
+                record[level_key], record[level_label], drill_path, is_base, record
+            )
             yield row
 
     def __iter__(self):
@@ -902,9 +936,7 @@ class Drilldown(object):
             else:
                 hierstr = ""
 
-            ddstr = "%s%s:%s" % (item.dimension.name,
-                                 hierstr,
-                                 item.levels[-1].name)
+            ddstr = "%s%s:%s" % (item.dimension.name, hierstr, item.levels[-1].name)
             strings.append(ddstr)
 
         return strings
@@ -949,8 +981,9 @@ class Drilldown(object):
             not_contained = []
 
             for level in item.levels:
-                if (level.cardinality == "high" or dim.cardinality == "high") \
-                        and not cell.contains_level(dim, level, hier):
+                if (
+                    level.cardinality == "high" or dim.cardinality == "high"
+                ) and not cell.contains_level(dim, level, hier):
                     not_contained.append(level)
 
             if not_contained:
@@ -1018,7 +1051,7 @@ class Drilldown(object):
         for item in self.drilldown:
             for level in item.levels:
                 lvl_attr = level.order_attribute or level.key
-                lvl_order = level.order or 'asc'
+                lvl_order = level.order or "asc"
                 order.append((lvl_attr, lvl_order))
 
         return order
@@ -1032,11 +1065,13 @@ class Drilldown(object):
     def __iter__(self):
         return self.drilldown.__iter__()
 
-    def __nonzero__(self):
+    def __bool__(self):
         return len(self.drilldown) > 0
 
-DrilldownItem = namedtuple("DrilldownItem",
-                           ["dimension", "hierarchy", "levels", "keys"])
+
+DrilldownItem = namedtuple(
+    "DrilldownItem", ["dimension", "hierarchy", "levels", "keys"]
+)
 
 
 # TODO: move this to Drilldown
@@ -1069,9 +1104,11 @@ def levels_from_drilldown(cell, drilldown):
     # If the drilldown is a list, convert it into a dictionary
     if isinstance(drilldown, dict):
         logger = get_logger()
-        logger.warn("drilldown as dictionary is depreciated. Use a list of: "
-                    "(dim, hierarchy, level) instead")
-        drilldown = [(dim, None, level) for dim, level in drilldown.items()]
+        logger.warn(
+            "drilldown as dictionary is depreciated. Use a list of: "
+            "(dim, hierarchy, level) instead"
+        )
+        drilldown = [(dim, None, level) for dim, level in list(drilldown.items())]
 
     for obj in drilldown:
         if isinstance(obj, compat.string_type):
@@ -1081,9 +1118,10 @@ def levels_from_drilldown(cell, drilldown):
         elif isinstance(obj, Dimension):
             obj = (obj, obj.hierarchy(), obj.hierarchy().levels[-1])
         elif len(obj) != 3:
-            raise ArgumentError("Drilldown item should be either a string "
-                                "or a tuple of three elements. Is: %s" %
-                                (obj, ))
+            raise ArgumentError(
+                "Drilldown item should be either a string "
+                "or a tuple of three elements. Is: %s" % (obj,)
+            )
 
         dim, hier, level = obj
         dim = cell.cube.dimension(dim)
@@ -1092,7 +1130,7 @@ def levels_from_drilldown(cell, drilldown):
 
         if level:
             index = hier.level_index(level)
-            levels = hier[:index + 1]
+            levels = hier[: index + 1]
         elif dim.is_flat:
             levels = hier[:]
         else:
@@ -1109,17 +1147,20 @@ def levels_from_drilldown(cell, drilldown):
                 depth = 0
 
             if cut_hierarchy != hier:
-                raise HierarchyError("Cut hierarchy %s for dimension %s is "
-                                     "different than drilldown hierarchy %s. "
-                                     "Can not determine implicit next level."
-                                     % (hier, dim, cut_hierarchy))
+                raise HierarchyError(
+                    "Cut hierarchy %s for dimension %s is "
+                    "different than drilldown hierarchy %s. "
+                    "Can not determine implicit next level."
+                    % (hier, dim, cut_hierarchy)
+                )
 
             if depth >= len(hier):
-                raise HierarchyError("Hierarchy %s in dimension %s has only "
-                                     "%d levels, can not drill to %d" %
-                                     (hier, dim, len(hier), depth + 1))
+                raise HierarchyError(
+                    "Hierarchy %s in dimension %s has only "
+                    "%d levels, can not drill to %d" % (hier, dim, len(hier), depth + 1)
+                )
 
-            levels = hier[:depth + 1]
+            levels = hier[: depth + 1]
 
         levels = tuple(levels)
         keys = [level.key.ref for level in levels]

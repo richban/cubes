@@ -2,7 +2,7 @@ import unittest
 import cubes
 import os
 
-from .common import DATA_PATH
+from tests.common import DATA_PATH
 
 @unittest.skip
 class CombinationsTestCase(unittest.TestCase):
@@ -67,9 +67,9 @@ class CuboidsTestCase(unittest.TestCase):
         dims = self.cube.dimensions
         results = cubes.common.all_cuboids(dims)
         # for r in results:
-        #     print "=== COMBO:"
+        #     print("=== COMBO:")
         #     for c in r:
-        #         print "---     %s: %s" % (c[0][0].name, c[1])
+        #         print(f"---     {c[0][0].name}: {c[1]}")
 
         self.assertEqual(len(results), 863)
 
@@ -84,11 +84,5 @@ class CuboidsTestCase(unittest.TestCase):
         self.assertRaises(AttributeError, cubes.common.all_cuboids,
                                           self.cube.dimensions, [foo_dim])
 
-def test_suite():
-    suite = unittest.TestSuite()
 
-    suite.addTest(unittest.makeSuite(CombinationsTestCase))
-    suite.addTest(unittest.makeSuite(CuboidsTestCase))
-
-    return suite
 

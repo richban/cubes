@@ -26,7 +26,7 @@ class CubesTestCaseBase(unittest.TestCase):
 
         if self.sql_engine:
             self.engine = create_engine(self.sql_engine)
-            self.metadata = MetaData(bind=self.engine)
+            self.metadata = MetaData()
         else:
             self.engine = None
             self.metadata = None
@@ -51,7 +51,7 @@ class CubesTestCaseBase(unittest.TestCase):
         class has an engine or `sql_engine` set, then the existing engine will
         be used as the default SQL store."""
 
-        raise NotImplementedError("Depreciated in this context")
+        from cubes import Workspace
         workspace = Workspace()
 
         if store:
@@ -59,21 +59,23 @@ class CubesTestCaseBase(unittest.TestCase):
             store_type = store.pop("type", "sql")
             workspace.register_default_store(store_type, **store)
         elif self.engine:
-            workspace.register_default_store("sql", engine=self.engine)
+            # Pass both engine and metadata so the store can find test tables
+            store_kwargs = {"engine": self.engine}
+            if hasattr(self, 'metadata') and self.metadata:
+                store_kwargs["metadata"] = self.metadata
+            workspace.register_default_store("sql", **store_kwargs)
 
         if model:
-            if isinstance(model, compat.string_type):
+            if isinstance(model, str):
                 model = self.model_path(model)
             workspace.import_model(model)
 
         return workspace
 
     def load_data(self, table, data):
-        self.engine.execute(table.delete())
-        for row in data:
-            insert = table.insert().values(row)
-            self.engine.execute(insert)
-
-    if not compat.py3k:
-        assertCountEqual = unittest.TestCase.assertItemsEqual
+        with self.engine.begin() as conn:
+            conn.execute(table.delete())
+            for row in data:
+                insert = table.insert().values(row)
+                conn.execute(insert)
 

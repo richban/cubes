@@ -9,6 +9,7 @@ try:
     from sqlalchemy.sql.functions import ReturnTypeFromArgs
 except ImportError:
     from ...common import MissingPackage
+
     sqlalchemy = sql = MissingPackage("sqlalchemy", "SQL aggregation browser")
     missing_error = MissingPackage("sqlalchemy", "SQL browser extensions")
 
@@ -17,13 +18,11 @@ except ImportError:
             # Just fail by trying to call missing package
             missing_error()
 
+
 from ..errors import ModelError
 
 
-__all__ = (
-    "get_aggregate_function",
-    "available_aggregate_functions"
-)
+__all__ = ("get_aggregate_function", "available_aggregate_functions")
 
 
 class AggregateFunction(object):
@@ -82,9 +81,10 @@ class AggregateFunction(object):
         Returns a SQLAlchemy expression."""
 
         if not aggregate.measure:
-            raise ModelError("No measure specified for aggregate %s, "
-                             "required for aggregate function %s"
-                             % (str(aggregate), self.name))
+            raise ModelError(
+                "No measure specified for aggregate %s, "
+                "required for aggregate function %s" % (str(aggregate), self.name)
+            )
 
         column = context[aggregate.measure]
 
@@ -100,6 +100,7 @@ class AggregateFunction(object):
 
     def __str__(self):
         return self.name
+
 
 class ValueCoalescingFunction(AggregateFunction):
     def coalesce_value(self, aggregate, value):
@@ -130,7 +131,7 @@ class GenerativeFunction(AggregateFunction):
 
 class FactCountFunction(AggregateFunction):
     def __init__(self, name, function=None, *args, **kwargs):
-        """Creates a function that provides fact (record) counts.  """
+        """Creates a function that provides fact (record) counts."""
         super(FactCountFunction, self).__init__(name, function)
 
     def apply(self, aggregate, context=None, coalesce=False):
@@ -153,16 +154,16 @@ class FactCountDistinctFunction(AggregateFunction):
 
 
 class avg(ReturnTypeFromArgs):
-    pass
+    inherit_cache = True
 
 
 # Works with PostgreSQL
 class stddev(ReturnTypeFromArgs):
-    pass
+    inherit_cache = True
 
 
 class variance(ReturnTypeFromArgs):
-    pass
+    inherit_cache = True
 
 
 _functions = (
@@ -174,7 +175,7 @@ _functions = (
     ValueCoalescingFunction("max", sql.functions.max),
     ValueCoalescingFunction("avg", avg),
     ValueCoalescingFunction("stddev", stddev),
-    ValueCoalescingFunction("variance", variance)
+    ValueCoalescingFunction("variance", variance),
 )
 
 _function_dict = {}
@@ -192,11 +193,15 @@ def get_aggregate_function(name):
     SQL expression."""
 
     _create_function_dict()
-    return _function_dict[name]
+    try:
+        return _function_dict[name]
+    except KeyError:
+        from ..errors import ArgumentError
+
+        raise ArgumentError("Unknown aggregate function '%s'" % name)
 
 
 def available_aggregate_functions():
     """Returns a list of available aggregate function names."""
     _create_function_dict()
-    return _function_dict.keys()
-
+    return list(_function_dict.keys())

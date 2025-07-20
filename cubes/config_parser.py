@@ -25,7 +25,7 @@ def read_slicer_config(config):
         except Exception as e:
             raise ConfigurationError("Unable to load configuration: %s" % e)
     elif not isinstance(config, compat.ConfigParser):
-        raise ConfigurationError("config should be a ConfigParser instance,"
-                                 " but is %r" % (type(config),)
-                                 )
+        raise ConfigurationError(
+            "config should be a ConfigParser instance, but is %r" % (type(config),)
+        )
     return config

@@ -1,11 +1,10 @@
 # -*- encoding: utf-8 -*-
 
-from __future__ import absolute_import
+
 
 import unittest
 import sqlalchemy as sa
 from datetime import datetime
-from cubes import compat
 
 # TODO: use the data.py version
 def create_table(engine, md, desc):
@@ -33,8 +32,8 @@ def create_table(engine, md, desc):
     if not types:
         types = ["string"] * len(desc["columns"])
 
-    col_types = dict(zip(desc["columns"], desc["types"]))
-    for name, type_ in col_types.items():
+    col_types = dict(list(zip(desc["columns"], desc["types"])))
+    for name, type_ in list(col_types.items()):
         real_type = TYPES[type_]
         if type_ == 'id':
             col = sa.Column(name, real_type, primary_key=True)
@@ -43,21 +42,21 @@ def create_table(engine, md, desc):
 
         table.append_column(col)
 
-    md.create_all()
+    # Create tables and insert data with explicit connection (SQLAlchemy 2.x)
+    with engine.begin() as conn:
+        md.create_all(conn)
+        
+        buffer = []
+        for row in desc["data"]:
+            record = {}
+            for key, value in zip(desc["columns"], row):
+                if col_types[key] == "date":
+                    value = datetime.strptime(value, "%Y-%m-%d")
+                record[key] = value
+            buffer.append(record)
 
-    insert = table.insert()
-
-    buffer = []
-    for row in desc["data"]:
-        record = {}
-        for key, value in zip(desc["columns"], row):
-            if col_types[key] == "date":
-                value = datetime.strptime(value, "%Y-%m-%d")
-            record[key] = value
-        buffer.append(record)
-
-    for row in buffer:
-        engine.execute(table.insert(row))
+        for row in buffer:
+            conn.execute(table.insert().values(row))
 
     return table
 
@@ -78,6 +77,3 @@ class SQLTestCase(unittest.TestCase):
     def table(self, name):
         """Return fully reflected table `name`"""
         return self.metadata.table(name, autoload=True)
-
-    if not compat.py3k:
-        assertCountEqual = unittest.TestCase.assertItemsEqual
