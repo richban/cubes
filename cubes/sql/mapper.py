@@ -1,8 +1,6 @@
 # -*- encoding: utf-8 -*-
 """Logical to Physical Mappers"""
 
-
-
 import re
 
 from ..errors import ModelError
@@ -22,7 +20,6 @@ __all__ = (
     "distill_naming",
     "Naming",
     "DEFAULT_KEY_FIELD",
-
     "Mapper",
     "StarSchemaMapper",
     "DenormalizedMapper",
@@ -32,8 +29,8 @@ __all__ = (
 
 DEFAULT_KEY_FIELD = "id"
 
-DEFAULT_FACT_KEY = 'id'
-DEFAULT_DIMENSION_KEY = 'id'
+DEFAULT_FACT_KEY = "id"
+DEFAULT_DIMENSION_KEY = "id"
 
 # Note: Only keys in this dictionary are allowed in the `naming` dictionary.
 # All other keys are ignored.
@@ -45,17 +42,13 @@ NAMING_DEFAULTS = {
     "dimension_suffix": None,
     "dimension_key_prefix": None,
     "dimension_key_suffix": None,
-
     "denormalized_prefix": None,
     "denormalized_suffix": None,
-
     "aggregated_prefix": None,
     "aggregated_suffix": None,
-
     "fact_key": DEFAULT_FACT_KEY,
     "dimension_key": DEFAULT_DIMENSION_KEY,
     "explicit_dimension_primary": False,
-
     "schema": None,
     "fact_schema": None,
     "dimension_schema": None,
@@ -65,8 +58,9 @@ NAMING_DEFAULTS = {
 
 def distill_naming(dictionary):
     """Distill only keys and values related to the naming conventions."""
-    d = {key: value for key, value in list(dictionary.items())
-         if key in NAMING_DEFAULTS}
+    d = {
+        key: value for key, value in list(dictionary.items()) if key in NAMING_DEFAULTS
+    }
 
     return Naming(d)
 
@@ -132,58 +126,65 @@ class Naming(AttributeDict):
             if key not in self:
                 self[key] = value
 
-        pat = re.compile("^{}(?P<name>.*){}$"
-                         .format(self.dimension_prefix or "", self.dimension_suffix or ""))
+        pat = re.compile(
+            "^{}(?P<name>.*){}$".format(
+                self.dimension_prefix or "", self.dimension_suffix or ""
+            )
+        )
         self["dim_name_pattern"] = pat
 
-        pat = re.compile("^{}(?P<name>.*){}$"
-                         .format(self.fact_prefix or "", self.fact_suffix or ""))
+        pat = re.compile(
+            "^{}(?P<name>.*){}$".format(self.fact_prefix or "", self.fact_suffix or "")
+        )
         self["fact_name_pattern"] = pat
 
-        pat = re.compile("^{}(?P<name>.*){}$"
-                         .format(self.dimension_key_prefix or "", self.dimension_key_suffix or ""))
+        pat = re.compile(
+            "^{}(?P<name>.*){}$".format(
+                self.dimension_key_prefix or "", self.dimension_key_suffix or ""
+            )
+        )
         self["dim_key_pattern"] = pat
 
     def dimension_table_name(self, name):
         """Constructs a physical dimension table name for dimension `name`"""
 
-        table_name = "{}{}{}".format(self.dimension_prefix or "",
-                                     name,
-                                     self.dimension_suffix or "")
+        table_name = "{}{}{}".format(
+            self.dimension_prefix or "", name, self.dimension_suffix or ""
+        )
         return table_name
 
     def fact_table_name(self, name):
         """Constructs a physical fact table name for fact/cube `name`"""
 
-        table_name = "{}{}{}".format(self.fact_prefix or "",
-                                     name,
-                                     self.fact_suffix or "")
+        table_name = "{}{}{}".format(
+            self.fact_prefix or "", name, self.fact_suffix or ""
+        )
         return table_name
 
     def denormalized_table_name(self, name):
         """Constructs a physical fact table name for fact/cube `name`"""
 
-        table_name = "{}{}{}".format(self.denormalized_prefix or "",
-                                     name,
-                                     self.denormalized_suffix or "")
+        table_name = "{}{}{}".format(
+            self.denormalized_prefix or "", name, self.denormalized_suffix or ""
+        )
         return table_name
 
     # TODO: require list of dimensions here
     def aggregated_table_name(self, name):
         """Constructs a physical fact table name for fact/cube `name`"""
 
-        table_name = "{}{}{}".format(self.aggregated_prefix or "",
-                                     name,
-                                     self.aggregated_suffix or "")
+        table_name = "{}{}{}".format(
+            self.aggregated_prefix or "", name, self.aggregated_suffix or ""
+        )
         return table_name
 
     def dimension_primary_key(self, name):
         """Constructs a dimension primary key name for dimension `name`"""
 
         if self.explicit_dimension_primary:
-            key = "{}{}{}".format(self.dimension_key_prefix or "",
-                                  name,
-                                  self.dimension_key_suffix or "")
+            key = "{}{}{}".format(
+                self.dimension_key_prefix or "", name, self.dimension_key_suffix or ""
+            )
             return key
         else:
             return self.dimension_key
@@ -227,19 +228,21 @@ class Mapper(object):
         self.mappings = cube.mappings or {}
         self.fact_name = cube.fact or naming.fact_table_name(cube.name)
 
-
     def __getitem__(self, attribute):
         """Returns implicit physical column reference for `attribute`, which
         should be an instance of :class:`cubes.model.Attribute`. If there is
         no dimension specified in attribute, then fact table is assumed. The
         returned reference has attributes `schema`, `table`, `column`,
-        `extract`.  """
+        `extract`."""
 
         column_name = attribute.name
 
         if attribute.is_localizable():
-            locale = self.locale if self.locale in attribute.locales \
-                                else attribute.locales[0]
+            locale = (
+                self.locale
+                if self.locale in attribute.locales
+                else attribute.locales[0]
+            )
 
             column_name = "{}_{}".format(column_name, locale)
 
@@ -269,9 +272,10 @@ class Mapper(object):
 class DenormalizedMapper(Mapper):
     def __getitem__(self, attribute):
         if attribute.expression:
-            raise ModelError("Attribute '{}' has an expression, it can not "
-                             "have a direct physical representation"
-                             .format(attribute.name))
+            raise ModelError(
+                "Attribute '{}' has an expression, it can not "
+                "have a direct physical representation".format(attribute.name)
+            )
 
         return super(DenormalizedMapper, self).__getitem__(attribute)
 
@@ -295,17 +299,21 @@ class StarSchemaMapper(Mapper):
         """
 
         if attribute.expression:
-            raise ModelError("Attribute '{}' has an expression, it can not "
-                             "have a direct physical representation"
-                             .format(attribute.name))
+            raise ModelError(
+                "Attribute '{}' has an expression, it can not "
+                "have a direct physical representation".format(attribute.name)
+            )
 
         # Fix locale: if attribute is not localized, use none, if it is
         # localized, then use specified if exists otherwise use default
         # locale of the attribute (first one specified in the list)
 
         if attribute.is_localizable():
-            locale = self.locale if self.locale in attribute.locales \
-                                else attribute.locales[0]
+            locale = (
+                self.locale
+                if self.locale in attribute.locales
+                else attribute.locales[0]
+            )
         else:
             locale = None
 
@@ -333,7 +341,6 @@ def map_base_attributes(cube, mapper_class, naming, locale=None):
     base = [attr for attr in cube.all_attributes if attr.is_base]
 
     mapper = mapper_class(cube, naming, locale)
-    mapped = {attr.ref:mapper[attr] for attr in base}
+    mapped = {attr.ref: mapper[attr] for attr in base}
 
     return (mapper.fact_name, mapped)
-

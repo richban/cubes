@@ -1,11 +1,10 @@
 # -*- coding=utf -*-
 """
-    cubes.datastructures
-    ~~~~~~~~~~~~~~~~~~~~~
+cubes.datastructures
+~~~~~~~~~~~~~~~~~~~~~
 
-    Utility data structures.
+Utility data structures.
 """
-
 
 try:
     from collections.abc import MutableMapping
@@ -31,6 +30,7 @@ class AttributeGetter(object):
     def __getattr__(self, name):
         return self.getter(name)
 
+
 #
 # Credits:
 # Originally from the Celery project:  http://www.celeryproject.org
@@ -48,8 +48,8 @@ class AttributeDictMixin(object):
             return self[k]
         except KeyError:
             raise AttributeError(
-                '{0!r} object has no attribute {1!r}'.format(
-                    type(self).__name__, k))
+                "{0!r} object has no attribute {1!r}".format(type(self).__name__, k)
+            )
 
     def __setattr__(self, key, value):
         """`d[key] = value -> d.key = value`"""
@@ -58,6 +58,7 @@ class AttributeDictMixin(object):
 
 class AttributeDict(dict, AttributeDictMixin):
     """Dict subclass with attribute access."""
+
     pass
 
 
@@ -68,10 +69,11 @@ class DictAttribute(object):
     `obj[k] = val -> obj.k = val`
 
     """
+
     obj = None
 
     def __init__(self, obj):
-        object.__setattr__(self, 'obj', obj)
+        object.__setattr__(self, "obj", obj)
 
     def __getattr__(self, key):
         return getattr(self.obj, key)
@@ -106,6 +108,7 @@ class DictAttribute(object):
 
     def _iterate_keys(self):
         return iter(dir(self.obj))
+
     iterkeys = _iterate_keys
 
     def __iter__(self):
@@ -114,11 +117,13 @@ class DictAttribute(object):
     def _iterate_items(self):
         for key in self._iterate_keys():
             yield key, getattr(self.obj, key)
+
     iteritems = _iterate_items
 
     def _iterate_values(self):
         for key in self._iterate_keys():
             yield getattr(self.obj, key)
+
     itervalues = _iterate_values
 
     if sys.version_info[0] == 3:  # pragma: no cover
@@ -136,7 +141,9 @@ class DictAttribute(object):
         def values(self):
             return list(self._iterate_values())
 
+
 MutableMapping.register(DictAttribute)
+
 
 class FlatAccessDict(dict):
     """A dictionary where items can be accessed by a 'dotted' path. For
@@ -179,4 +186,3 @@ class FlatAccessDict(dict):
             return super(FlatAccessDict, self).pop(key, default)
         else:
             return owner.pop(path[-1], default)
-

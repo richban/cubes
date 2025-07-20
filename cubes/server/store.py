@@ -9,12 +9,14 @@ from .. import compat
 
 DEFAULT_SLICER_URL = "http://localhost:5000"
 
+
 class _default_opener:
     def __init__(self):
         pass
 
     def open(self, url, *args, **kwargs):
         return compat.urlopen(url, *args, **kwargs)
+
 
 class SlicerStore(Store):
     related_model_provider = "slicer"
@@ -27,40 +29,43 @@ class SlicerStore(Store):
         {
             "name": "url",
             "description": "URL of another/external Slicer",
-            "type": "string"
+            "type": "string",
         },
         {
             "name": "authentication",
             "description": "Authentication method (pass_parameter or none)",
-            "type": "string"
+            "type": "string",
         },
         {
             "name": "auth_identity",
             "description": "Authenticated identity (user name, key, ...)",
-            "type": "string"
+            "type": "string",
         },
         {
             "name": "auth_parameter",
-            "description": "Name of authentication URL parameter " \
-                           "(default: api_key",
-            "type": "string"
+            "description": "Name of authentication URL parameter (default: api_key",
+            "type": "string",
         },
         {
             "name": "username",
             "description": "HTTP authentication username",
-            "type": "string"
+            "type": "string",
         },
         {
             "name": "password",
             "description": "HTTP authentication password",
-            "type": "string"
+            "type": "string",
         },
     ]
 
-    def __init__(self, url=None, authentication=None,
-                 auth_identity=None, auth_parameter=None,
-                 **options):
-
+    def __init__(
+        self,
+        url=None,
+        authentication=None,
+        auth_identity=None,
+        auth_parameter=None,
+        **options,
+    ):
         super(SlicerStore, self).__init__(**options)
 
         url = url or DEFAULT_SLICER_URL
@@ -69,8 +74,9 @@ class SlicerStore(Store):
         self.logger = get_logger()
 
         if authentication and authentication not in ["pass_parameter", "none"]:
-            raise ConfigurationError("Unsupported authentication method '%s'"
-                                     % authentication)
+            raise ConfigurationError(
+                "Unsupported authentication method '%s'" % authentication
+            )
 
         self.authentication = authentication
         self.auth_identity = auth_identity
@@ -79,9 +85,12 @@ class SlicerStore(Store):
         if "username" in options and "password" in options:
             # make a basic auth-enabled opener
             _pmgr = compat.HTTPPasswordMgrWithDefaultRealm()
-            _pmgr.add_password(None, self.url, options['username'], options['password'])
+            _pmgr.add_password(None, self.url, options["username"], options["password"])
             self.opener = compat.build_opener(compat.HTTPBasicAuthHandler(_pmgr))
-            self.logger.info("Created slicer opener using basic auth credentials with username %s", options['username'])
+            self.logger.info(
+                "Created slicer opener using basic auth credentials with username %s",
+                options["username"],
+            )
         else:
             self.opener = _default_opener()
 
@@ -100,19 +109,20 @@ class SlicerStore(Store):
             params[self.auth_parameter] = self.auth_identity
 
         params_str = compat.urlencode(params)
-        request_url = '%s/%s' % (self.url, action)
+        request_url = "%s/%s" % (self.url, action)
 
         if params_str:
-            request_url += '?' + params_str
+            request_url += "?" + params_str
 
-        self.logger.debug("slicer request: %s" % (request_url, ))
+        self.logger.debug("slicer request: %s" % (request_url,))
         response = self.opener.open(request_url)
 
         if response.getcode() == 404:
             raise MissingObjectError
         elif response.getcode() != 200:
-            raise BackendError("Slicer request error (%s): %s"
-                               % (response.getcode(), response.read()))
+            raise BackendError(
+                "Slicer request error (%s): %s" % (response.getcode(), response.read())
+            )
 
         if is_lines:
             return _JSONLinesIterator(response)
@@ -139,7 +149,6 @@ class _JSONLinesIterator(object):
 
 
 class SlicerModelProvider(ModelProvider):
-
     __description__ = """
     Uses external Slicer server as a model provider.
     """
@@ -148,7 +157,7 @@ class SlicerModelProvider(ModelProvider):
         return True
 
     def list_cubes(self):
-        return self.store.request('cubes')
+        return self.store.request("cubes")
 
     def cube(self, name, locale=None):
         params = {}

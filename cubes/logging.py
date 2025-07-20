@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 
-
 from logging import getLogger, Formatter, StreamHandler, FileHandler
 
 __all__ = [
@@ -13,6 +12,7 @@ DEFAULT_LOGGER_NAME = "cubes"
 DEFAULT_FORMAT = "%(asctime)s %(levelname)s %(message)s"
 logger = None
 
+
 # TODO: make name first
 def get_logger(path=None, format_=None, name=None):
     """Get brewery default logger"""
@@ -22,6 +22,7 @@ def get_logger(path=None, format_=None, name=None):
         return logger
     else:
         return create_logger(path, format_, name)
+
 
 def create_logger(path=None, format_=None, name=None):
     """Create a default logger"""
@@ -43,4 +44,3 @@ def create_logger(path=None, format_=None, name=None):
         logger.addHandler(handler)
 
     return logger
-

@@ -1,11 +1,10 @@
 # -*- encoding: utf-8 -*-
 """Cube logical model"""
 
-
-
 from collections import OrderedDict, defaultdict
 
 from ..common import assert_all_instances, get_localizable_attributes
+
 # TODO: This should belong here
 from ..query.statutils import aggregate_calculator_labels
 from ..errors import ModelError, ArgumentError, NoSuchAttributeError
@@ -26,7 +25,7 @@ __all__ = [
 DEFAULT_FACT_COUNT_AGGREGATE = {
     "name": "fact_count",
     "label": "Count",
-    "function": "count"
+    "function": "count",
 }
 
 # TODO: make this configurable
@@ -148,16 +147,20 @@ class Cube(ModelObject):
                 existing = aggregate_dict.get(aggregate.name)
                 if existing:
                     if existing.function != aggregate.function:
-                        raise ModelError("Aggregate '%s' function mismatch. "
-                                         "Implicit function %s, explicit function:"
-                                         " %s." % (aggregate.name,
-                                                   aggregate.function,
-                                                   existing.function))
+                        raise ModelError(
+                            "Aggregate '%s' function mismatch. "
+                            "Implicit function %s, explicit function:"
+                            " %s."
+                            % (aggregate.name, aggregate.function, existing.function)
+                        )
                     continue
                 # or the same function and measure
-                existing = [agg for agg in aggregates
-                            if agg.function == aggregate.function
-                            and agg.measure == measure.name]
+                existing = [
+                    agg
+                    for agg in aggregates
+                    if agg.function == aggregate.function
+                    and agg.measure == measure.name
+                ]
 
                 if existing:
                     continue
@@ -181,24 +184,41 @@ class Cube(ModelObject):
             if measure and aggregate.nonadditive is None:
                 aggregate.nonadditive = measure.nonadditive
 
-        return cls(measures=measures,
-                   aggregates=aggregates,
-                   dimension_links=dimension_links,
-                   details=details,
-                   **metadata)
+        return cls(
+            measures=measures,
+            aggregates=aggregates,
+            dimension_links=dimension_links,
+            details=details,
+            **metadata,
+        )
 
-    def __init__(self, name, dimensions=None, measures=None, aggregates=None,
-                 label=None, details=None, mappings=None, joins=None,
-                 fact=None, key=None, description=None, browser_options=None,
-                 info=None, dimension_links=None, locale=None, category=None,
-                 store=None, **options):
-
-
+    def __init__(
+        self,
+        name,
+        dimensions=None,
+        measures=None,
+        aggregates=None,
+        label=None,
+        details=None,
+        mappings=None,
+        joins=None,
+        fact=None,
+        key=None,
+        description=None,
+        browser_options=None,
+        info=None,
+        dimension_links=None,
+        locale=None,
+        category=None,
+        store=None,
+        **options,
+    ):
         super(Cube, self).__init__(name, label, description, info)
 
         if dimensions and dimension_links:
-            raise ModelError("Both dimensions and dimension_links provided, "
-                             "use only one.")
+            raise ModelError(
+                "Both dimensions and dimension_links provided, use only one."
+            )
 
         self.locale = locale
 
@@ -238,8 +258,10 @@ class Cube(ModelObject):
 
         if dimensions:
             if not all([isinstance(dim, Dimension) for dim in dimensions]):
-                raise ModelError("Dimensions for cube initialization should be "
-                                 "a list of Dimension instances.")
+                raise ModelError(
+                    "Dimensions for cube initialization should be "
+                    "a list of Dimension instances."
+                )
             for dim in dimensions:
                 self._add_dimension(dim)
         #
@@ -250,20 +272,22 @@ class Cube(ModelObject):
 
         measures = measures or []
         assert_all_instances(measures, Measure, "measure")
-        self._measures = object_dict(measures,
-                                     error_message="Duplicate measure {key} "
-                                                   "in cube {cube}",
-                                     error_dict={"cube": self.name})
+        self._measures = object_dict(
+            measures,
+            error_message="Duplicate measure {key} in cube {cube}",
+            error_dict={"cube": self.name},
+        )
 
         # Aggregates
         #
         aggregates = aggregates or []
         assert_all_instances(aggregates, MeasureAggregate, "aggregate")
 
-        self._aggregates = object_dict(aggregates,
-                                       error_message="Duplicate aggregate "
-                                                     "{key} in cube {cube}",
-                                       error_dict={"cube": self.name})
+        self._aggregates = object_dict(
+            aggregates,
+            error_message="Duplicate aggregate {key} in cube {cube}",
+            error_dict={"cube": self.name},
+        )
 
         # We don't need to access details by name
         details = details or []
@@ -288,8 +312,9 @@ class Cube(ModelObject):
         try:
             return self._measures[name]
         except KeyError:
-            raise NoSuchAttributeError("Cube '%s' has no measure '%s'" %
-                                       (self.name, name))
+            raise NoSuchAttributeError(
+                "Cube '%s' has no measure '%s'" % (self.name, name)
+            )
 
     def get_measures(self, measures):
         """Get a list of measures as `Attribute` objects. If `measures` is
@@ -319,8 +344,9 @@ class Cube(ModelObject):
         try:
             return self._aggregates[name]
         except KeyError:
-            raise NoSuchAttributeError("Cube '%s' has no measure aggregate "
-                                       "'%s'" % (self.name, name))
+            raise NoSuchAttributeError(
+                "Cube '%s' has no measure aggregate '%s'" % (self.name, name)
+            )
 
     def get_aggregates(self, names=None):
         """Get a list of aggregates with `names`."""
@@ -417,12 +443,12 @@ class Cube(ModelObject):
         """
 
         attributes = self.all_attributes + self.all_aggregate_attributes
-        return {attr.ref:attr.dependencies for attr in attributes}
+        return {attr.ref: attr.dependencies for attr in attributes}
 
     @property
     def all_aggregate_attributes(self):
         """All cube's attributes for aggregation: attributes of dimensions and
-        aggregates.  """
+        aggregates."""
 
         attributes = []
         for dim in self.dimensions:
@@ -455,8 +481,9 @@ class Cube(ModelObject):
             if measure.name == name:
                 return measure
 
-        raise NoSuchAttributeError("Cube '%s' has no attribute '%s'"
-                                   % (self.name, attribute))
+        raise NoSuchAttributeError(
+            "Cube '%s' has no attribute '%s'" % (self.name, attribute)
+        )
 
     def get_attributes(self, attributes=None, aggregated=False):
         """Returns a list of cube's attributes. If `aggregated` is `True` then
@@ -491,8 +518,9 @@ class Cube(ModelObject):
             try:
                 attr = everything[name]
             except KeyError:
-                raise NoSuchAttributeError("Unknown attribute '{}' in cube "
-                                           "'{}'".format(name, self.name))
+                raise NoSuchAttributeError(
+                    "Unknown attribute '{}' in cube '{}'".format(name, self.name)
+                )
             result.append(attr)
 
         return result
@@ -533,15 +561,17 @@ class Cube(ModelObject):
     def _add_dimension(self, dimension):
         """Add dimension to cube. Replace dimension with same name. Raises
         `ModelInconsistencyError` when dimension with same name already exists
-        in the receiver. """
+        in the receiver."""
 
         if not dimension:
-            raise ArgumentError("Trying to add None dimension to cube '%s'."
-                                % self.name)
+            raise ArgumentError(
+                "Trying to add None dimension to cube '%s'." % self.name
+            )
         elif not isinstance(dimension, Dimension):
-            raise ArgumentError("Dimension added to cube '%s' is not a "
-                                "Dimension instance. It is '%s'"
-                                % (self.name, type(dimension)))
+            raise ArgumentError(
+                "Dimension added to cube '%s' is not a "
+                "Dimension instance. It is '%s'" % (self.name, type(dimension))
+            )
 
         self._dimensions[dimension.name] = dimension
 
@@ -561,15 +591,17 @@ class Cube(ModelObject):
         # the list of required dimensions
 
         if not obj:
-            raise NoSuchDimensionError("Requested dimension should not be "
-                                       "none (cube '{}')".format(self.name))
+            raise NoSuchDimensionError(
+                "Requested dimension should not be none (cube '{}')".format(self.name)
+            )
 
         name = str(obj)
         try:
             return self._dimensions[str(name)]
         except KeyError:
-            raise NoSuchDimensionError("cube '{}' has no dimension '{}'"
-                                       .format(self.name, name))
+            raise NoSuchDimensionError(
+                "cube '{}' has no dimension '{}'".format(self.name, name)
+            )
 
     @property
     def distilled_hierarchies(self):
@@ -649,22 +681,27 @@ class Cube(ModelObject):
         if other is None or type(other) != type(self):
             return False
 
-        if self.name != other.name or self.label != other.label \
-            or self.description != other.description:
+        if (
+            self.name != other.name
+            or self.label != other.label
+            or self.description != other.description
+        ):
             return False
-        elif self.dimensions != other.dimensions \
-                or self.measures != other.measures \
-                or self.aggregates != other.aggregates \
-                or self.details != other.details \
-                or self.mappings != other.mappings \
-                or self.joins != other.joins \
-                or self.browser_options != other.browser_options \
-                or self.info != other.info:
+        elif (
+            self.dimensions != other.dimensions
+            or self.measures != other.measures
+            or self.aggregates != other.aggregates
+            or self.details != other.details
+            or self.mappings != other.mappings
+            or self.joins != other.joins
+            or self.browser_options != other.browser_options
+            or self.info != other.info
+        ):
             return False
         return True
 
     def validate(self):
-        """Validate cube. See Model.validate() for more information. """
+        """Validate cube. See Model.validate() for more information."""
         results = []
 
         # Check whether all attributes, measures and keys are Attribute objects
@@ -674,25 +711,41 @@ class Cube(ModelObject):
 
         for measure in self.measures:
             if not isinstance(measure, Attribute):
-                results.append(('error',
-                                "Measure '%s' in cube '%s' is not instance"
-                                "of Attribute" % (measure, self.name)))
+                results.append(
+                    (
+                        "error",
+                        "Measure '%s' in cube '%s' is not instance"
+                        "of Attribute" % (measure, self.name),
+                    )
+                )
             else:
                 measures.add(str(measure))
 
         details = set()
         for detail in self.details:
             if not isinstance(detail, Attribute):
-                results.append(('error', "Detail '%s' in cube '%s' is not "
-                                         "instance of Attribute"
-                                         % (detail, self.name)))
+                results.append(
+                    (
+                        "error",
+                        "Detail '%s' in cube '%s' is not "
+                        "instance of Attribute" % (detail, self.name),
+                    )
+                )
             if str(detail) in details:
-                results.append(('error', "Duplicate detail '%s' in cube '%s'"\
-                                            % (detail, self.name)))
+                results.append(
+                    (
+                        "error",
+                        "Duplicate detail '%s' in cube '%s'" % (detail, self.name),
+                    )
+                )
             elif str(detail) in measures:
-                results.append(('error', "Duplicate detail '%s' in cube '%s'"
-                                         " - specified also as measure" \
-                                         % (detail, self.name)))
+                results.append(
+                    (
+                        "error",
+                        "Duplicate detail '%s' in cube '%s'"
+                        " - specified also as measure" % (detail, self.name),
+                    )
+                )
             else:
                 details.add(str(detail))
 
@@ -745,7 +798,6 @@ def _measure_aggregate_label(aggregate, measure):
     template = IMPLICIT_AGGREGATE_LABELS.get(function, "{measure}")
 
     if aggregate.label is None and template:
-
         if measure:
             measure_label = measure.label or measure.name
         else:
@@ -805,8 +857,10 @@ def expand_cube_metadata(metadata):
             link["hierarchies"] = hiers
 
         if dim_hiers:
-            raise ModelError("There are hierarchies specified for non-linked "
-                             "dimensions: %s." % (list(dim_hiers.keys())))
+            raise ModelError(
+                "There are hierarchies specified for non-linked "
+                "dimensions: %s." % (list(dim_hiers.keys()))
+            )
 
     nonadditive = metadata.pop("nonadditive", None)
     if "measures" in metadata:
@@ -824,5 +878,3 @@ def expand_cube_metadata(metadata):
         metadata["dimensions"] = links
 
     return metadata
-
-

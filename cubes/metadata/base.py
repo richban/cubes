@@ -1,8 +1,5 @@
-
 # -*- encoding: utf-8 -*-
 """Cube logical model"""
-
-
 
 import json
 import os
@@ -78,13 +75,14 @@ class ModelObject(object):
                 for obj in getattr(acopy, attr):
                     obj_context = context.object_localization(attr, obj.name)
                     list_copy.append(obj.localized(obj_context))
-                
+
                 # For properties like 'measures' that are read-only, set the underlying attribute
-                if hasattr(acopy, f'_{attr}'):
+                if hasattr(acopy, f"_{attr}"):
                     # Set the private attribute that backs the property
                     from collections import OrderedDict
+
                     private_dict = OrderedDict((obj.name, obj) for obj in list_copy)
-                    setattr(acopy, f'_{attr}', private_dict)
+                    setattr(acopy, f"_{attr}", private_dict)
                 else:
                     # For direct attributes, set them normally
                     setattr(acopy, attr, list_copy)
@@ -123,13 +121,14 @@ def object_dict(objects, by_ref=False, error_message=None, error_dict=None):
 # strip_mappings(cube) -> remove mappings from cube
 # strip_mappings
 
+
 def _json_from_url(url):
     """Opens `resource` either as a file with `open()`or as URL with
-    `urlopen()`. Returns opened handle. """
+    `urlopen()`. Returns opened handle."""
 
     parts = compat.urlparse(url)
 
-    if parts.scheme in ('', 'file'):
+    if parts.scheme in ("", "file"):
         handle = compat.open_unicode(parts.path)
     elif len(parts.scheme) == 1:
         # TODO: This is temporary hack for MS Windows which can be replaced by
@@ -155,7 +154,7 @@ def read_model_metadata(source):
 
     if isinstance(source, compat.string_type):
         parts = compat.urlparse(source)
-        if parts.scheme in ('', 'file') and os.path.isdir(parts.path):
+        if parts.scheme in ("", "file") and os.path.isdir(parts.path):
             source = parts.path
             return read_model_metadata_bundle(source)
         elif len(parts.scheme) == 1 and os.path.isdir(source):
@@ -183,10 +182,10 @@ def read_model_metadata_bundle(path):
     if not os.path.isdir(path):
         raise ArgumentError("Path '%s' is not a directory.")
 
-    info_path = os.path.join(path, 'model.json')
+    info_path = os.path.join(path, "model.json")
 
     if not os.path.exists(info_path):
-        raise ModelError('main model info %s does not exist' % info_path)
+        raise ModelError("main model info %s does not exist" % info_path)
 
     model = _json_from_url(info_path)
 
@@ -200,35 +199,37 @@ def read_model_metadata_bundle(path):
 
     for dirname, dirnames, filenames in os.walk(path):
         for filename in filenames:
-            if os.path.splitext(filename)[1] != '.json':
+            if os.path.splitext(filename)[1] != ".json":
                 continue
 
-            split = re.split('_', filename)
+            split = re.split("_", filename)
             prefix = split[0]
             obj_path = os.path.join(dirname, filename)
 
-            if prefix in ('dim', 'dimension'):
+            if prefix in ("dim", "dimension"):
                 desc = _json_from_url(obj_path)
                 try:
                     name = desc["name"]
                 except KeyError:
-                    raise ModelError("Dimension file '%s' has no name key" %
-                                                                     obj_path)
+                    raise ModelError("Dimension file '%s' has no name key" % obj_path)
                 if name in model["dimensions"]:
-                    raise ModelError("Dimension '%s' defined multiple times " %
-                                        "(in '%s')" % (name, obj_path) )
+                    raise ModelError(
+                        "Dimension '%s' defined multiple times "
+                        % "(in '%s')"
+                        % (name, obj_path)
+                    )
                 model["dimensions"].append(desc)
 
-            elif prefix == 'cube':
+            elif prefix == "cube":
                 desc = _json_from_url(obj_path)
                 try:
                     name = desc["name"]
                 except KeyError:
-                    raise ModelError("Cube file '%s' has no name key" %
-                                                                     obj_path)
+                    raise ModelError("Cube file '%s' has no name key" % obj_path)
                 if name in model["cubes"]:
-                    raise ModelError("Cube '%s' defined multiple times "
-                                        "(in '%s')" % (name, obj_path) )
+                    raise ModelError(
+                        "Cube '%s' defined multiple times (in '%s')" % (name, obj_path)
+                    )
                 model["cubes"].append(desc)
 
     return model
@@ -240,16 +241,13 @@ def write_model_metadata_bundle(path, metadata, replace=False):
 
     if os.path.exists(path):
         if not os.path.isdir(path):
-            raise CubesError("Target exists and is a file, "
-                                "can not replace")
+            raise CubesError("Target exists and is a file, can not replace")
         elif not os.path.exists(os.path.join(path, "model.json")):
-            raise CubesError("Target is not a model directory, "
-                                "can not replace.")
+            raise CubesError("Target is not a model directory, can not replace.")
         if replace:
             shutil.rmtree(path)
         else:
-            raise CubesError("Target already exists. "
-                                "Remove it or force replacement.")
+            raise CubesError("Target already exists. Remove it or force replacement.")
 
     os.makedirs(path)
 
@@ -273,4 +271,3 @@ def write_model_metadata_bundle(path, metadata, replace=False):
     filename = os.path.join(path, "model.json")
     with open(filename, "w") as f:
         json.dump(metadata, f, indent=4)
-

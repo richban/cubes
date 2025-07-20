@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 
-
 import codecs
 import csv
 import datetime
@@ -23,7 +22,7 @@ try:
 except ImportError:
     from .common import MissingPackage
 
-    openpyxl = MissingPackage('openpyxl', 'pyexcel or other xlsx/xlsm reader/writer')
+    openpyxl = MissingPackage("openpyxl", "pyexcel or other xlsx/xlsm reader/writer")
 
 from .errors import ArgumentError
 from . import compat
@@ -37,7 +36,7 @@ __all__ = [
     "HTMLCrossTableFormatter",
     "SlicerJSONEncoder",
     "csv_generator",
-    'xlsx_generator',
+    "xlsx_generator",
     "JSONLinesGenerator",
 ]
 
@@ -50,13 +49,12 @@ def create_formatter(type_, *args, **kwargs):
 
 def _jinja_env():
     """Create and return cubes jinja2 environment"""
-    loader = jinja2.PackageLoader('cubes', 'templates')
+    loader = jinja2.PackageLoader("cubes", "templates")
     env = jinja2.Environment(loader=loader)
     return env
 
 
-def csv_generator(records, fields, include_header=True, header=None,
-                  dialect=csv.excel):
+def csv_generator(records, fields, include_header=True, header=None, dialect=csv.excel):
     def _row_string(row):
         writer.writerow(row)
         data = queue.getvalue()
@@ -65,6 +63,7 @@ def csv_generator(records, fields, include_header=True, header=None,
         return data
 
     from io import StringIO
+
     queue = StringIO()
     writer = csv.writer(queue, dialect=dialect)
 
@@ -94,7 +93,7 @@ def xlsx_generator(records, fields, include_header=True, header=None):
 
 
 class JSONLinesGenerator(object):
-    def __init__(self, iterable, separator='\n'):
+    def __init__(self, iterable, separator="\n"):
         """Creates a generator that yields one JSON record per record from
         `iterable` separated by a newline character.."""
         self.iterable = iterable
@@ -158,8 +157,9 @@ class Formatter(object):
         return self.format(*args, **kwargs)
 
     def format(self, *args, **kwargs):
-        raise NotImplementedError("Subclasses are expected to implement "
-                                  "the format() method")
+        raise NotImplementedError(
+            "Subclasses are expected to implement the format() method"
+        )
 
 
 # Main pre-formatting
@@ -225,7 +225,6 @@ def make_cross_table(result, onrows=None, oncolumns=None, aggregates_on=None):
             base_hcol = [record[f] for f in oncolumns]
 
             for agg in aggregates:
-
                 if aggregates_on == "rows":
                     hrow = tuple(base_hrow + [agg.label or agg.name])
                     hcol = tuple(base_hcol)
@@ -270,11 +269,7 @@ def coalesce_table_labels(attributes, onrows, oncolumns):
 
 class CrossTableFormatter(Formatter):
     __options__ = [
-        {
-            "name": "indent",
-            "type": "integer",
-            "label": "Output indent"
-        },
+        {"name": "indent", "type": "integer", "label": "Output indent"},
     ]
 
     mime_type = "application/json"
@@ -298,33 +293,28 @@ class CrossTableFormatter(Formatter):
         self.indent = indent or 4
         self.encoder = SlicerJSONEncoder(indent=indent)
 
-    def format(self, cube, result, onrows=None, oncolumns=None, aggregates=None,
-               aggregates_on=None):
-        onrows, oncolumns = coalesce_table_labels(result.attributes,
-                                                  onrows,
-                                                  oncolumns)
-        table = make_cross_table(result,
-                                 onrows=onrows,
-                                 oncolumns=oncolumns,
-                                 aggregates_on=aggregates_on)
+    def format(
+        self,
+        cube,
+        result,
+        onrows=None,
+        oncolumns=None,
+        aggregates=None,
+        aggregates_on=None,
+    ):
+        onrows, oncolumns = coalesce_table_labels(result.attributes, onrows, oncolumns)
+        table = make_cross_table(
+            result, onrows=onrows, oncolumns=oncolumns, aggregates_on=aggregates_on
+        )
 
-        d = {
-            "columns": table.columns,
-            "rows": table.rows,
-            "data": table.data
-        }
+        d = {"columns": table.columns, "rows": table.rows, "data": table.data}
         output = self.encoder.encode(d)
 
         return output
 
 
 class HTMLCrossTableFormatter(CrossTableFormatter):
-    __options__ = [
-        {
-            "name": "table_style",
-            "description": "CSS style for the table"
-        }
-    ]
+    __options__ = [{"name": "table_style", "description": "CSS style for the table"}]
     mime_type = "text/html"
 
     def __init__(self, table_style=None):
@@ -335,25 +325,34 @@ class HTMLCrossTableFormatter(CrossTableFormatter):
         self.template = self.env.get_template("cross_table.html")
         self.table_style = table_style
 
-    def format(self, cube, result, onrows=None, oncolumns=None, aggregates=None,
-               aggregates_on=None):
-        onrows, oncolumns = coalesce_table_labels(result.attributes,
-                                                  onrows,
-                                                  oncolumns)
-        table = make_cross_table(result,
-                                 onrows=onrows,
-                                 oncolumns=oncolumns,
-                                 aggregates_on=aggregates_on)
+    def format(
+        self,
+        cube,
+        result,
+        onrows=None,
+        oncolumns=None,
+        aggregates=None,
+        aggregates_on=None,
+    ):
+        onrows, oncolumns = coalesce_table_labels(result.attributes, onrows, oncolumns)
+        table = make_cross_table(
+            result, onrows=onrows, oncolumns=oncolumns, aggregates_on=aggregates_on
+        )
 
-        output = self.template.render(table=table,
-                                      table_style=self.table_style)
+        output = self.template.render(table=table, table_style=self.table_style)
         return output
 
 
 class CSVFormatter(Formatter):
-    def format(self, cube, result, onrows=None, oncolumns=None, aggregates=None,
-               aggregates_on=None):
-
+    def format(
+        self,
+        cube,
+        result,
+        onrows=None,
+        oncolumns=None,
+        aggregates=None,
+        aggregates_on=None,
+    ):
         if any([onrows, oncolumns]):
             raise ArgumentError("Column/row layout options are not supported")
 
@@ -361,16 +360,17 @@ class CSVFormatter(Formatter):
         for l in result.labels:
             # TODO: add a little bit of polish to this
             if l == SPLIT_DIMENSION_NAME:
-                header.append('Matches Filters')
+                header.append("Matches Filters")
             else:
-                header += [attr.label or attr.name
-                           for attr in cube.get_attributes([l], aggregated=True)]
+                header += [
+                    attr.label or attr.name
+                    for attr in cube.get_attributes([l], aggregated=True)
+                ]
 
         fields = result.labels
-        generator = csv_generator(result,
-                                  fields,
-                                  include_header=bool(header),
-                                  header=header)
+        generator = csv_generator(
+            result, fields, include_header=bool(header), header=header
+        )
         # TODO: this is Py3 hack over Py2 hack
         rows = [compat.to_str(row) for row in generator]
         output = "".join(rows)
@@ -379,24 +379,32 @@ class CSVFormatter(Formatter):
 
 class XLSXFormatter(Formatter):
     # TODO(serbernar): write formatter
-    def format(self, cube, result, onrows=None, oncolumns=None, aggregates=None,
-               aggregates_on=None):
+    def format(
+        self,
+        cube,
+        result,
+        onrows=None,
+        oncolumns=None,
+        aggregates=None,
+        aggregates_on=None,
+    ):
         if any([onrows, oncolumns]):
             raise ArgumentError("Column/row layout options are not supported")
 
         header = []
         for l in result.labels:
             if l == SPLIT_DIMENSION_NAME:
-                header.append('Matches Filters')
+                header.append("Matches Filters")
             else:
-                header += [attr.label or attr.name
-                           for attr in cube.get_attributes([l], aggregated=True)]
+                header += [
+                    attr.label or attr.name
+                    for attr in cube.get_attributes([l], aggregated=True)
+                ]
 
         fields = result.labels
-        generator = csv_generator(result,
-                                  fields,
-                                  include_header=bool(header),
-                                  header=header)
+        generator = csv_generator(
+            result, fields, include_header=bool(header), header=header
+        )
         rows = [compat.to_str(row) for row in generator]
         output = "".join(rows)
         return output

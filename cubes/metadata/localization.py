@@ -10,6 +10,7 @@ from .. import compat
 # TODO: reuse the lookup function
 # TODO: Change this to use translation lookup instead of just one translation
 
+
 class ModelObjectLocalizationContext(object):
     def __init__(self, translation, context, object_type, object_name):
         self.translation = translation
@@ -21,8 +22,7 @@ class ModelObjectLocalizationContext(object):
         try:
             return self.translation[key]
         except KeyError:
-            return self.context.get(self.object_type, self.object_name, key,
-                                    default)
+            return self.context.get(self.object_type, self.object_name, key, default)
 
     def object_localization(self, object_type, name):
         try:
@@ -33,15 +33,14 @@ class ModelObjectLocalizationContext(object):
         try:
             trans = objects[name]
         except KeyError:
-            return ModelObjectLocalizationContext({}, self.context,
-                                              object_type, name)
+            return ModelObjectLocalizationContext({}, self.context, object_type, name)
 
         # Make string-only translations as translations of labels
         if isinstance(trans, compat.string_type):
             trans = {"label": trans}
 
-        return ModelObjectLocalizationContext(trans, self.context,
-                                              object_type, name)
+        return ModelObjectLocalizationContext(trans, self.context, object_type, name)
+
 
 class LocalizationContext(object):
     def __init__(self, translation, parent=None):
@@ -105,7 +104,7 @@ class LocalizationContext(object):
         lookup_map = {
             "cube": "cubes",
             "dimension": "dimensions",
-            "defaults": "defaults"
+            "defaults": "defaults",
         }
 
         objkey = lookup_map[type_]
@@ -115,4 +114,3 @@ class LocalizationContext(object):
                 return trans[objkey][obj]
 
         return None
-

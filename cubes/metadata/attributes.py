@@ -1,7 +1,6 @@
 # -*- encoding: utf-8 -*-
 
 
-
 import copy
 
 from expressions import inspect_variables
@@ -16,9 +15,7 @@ __all__ = [
     "Attribute",
     "Measure",
     "MeasureAggregate",
-
     "create_list_of",
-
     "collect_attributes",
     "depsort_attributes",
     "collect_dependencies",
@@ -64,8 +61,8 @@ class AttributeBase(ModelObject):
     specified.
     """
 
-    ASC = 'asc'
-    DESC = 'desc'
+    ASC = "asc"
+    DESC = "desc"
 
     localizable_attributes = ["label", "description", "format"]
 
@@ -81,13 +78,23 @@ class AttributeBase(ModelObject):
             return copy.copy(metadata)
         elif isinstance(metadata, dict):
             if "name" not in metadata:
-                raise ModelError("Model objects metadata require at least "
-                                 "name to be present.")
+                raise ModelError(
+                    "Model objects metadata require at least name to be present."
+                )
             return cls(**metadata)
 
-    def __init__(self, name, label=None, description=None, order=None,
-                 info=None, format=None, missing_value=None, expression=None,
-                 **kwargs):
+    def __init__(
+        self,
+        name,
+        label=None,
+        description=None,
+        order=None,
+        info=None,
+        format=None,
+        missing_value=None,
+        expression=None,
+        **kwargs,
+    ):
         super(AttributeBase, self).__init__(name, label, description, info)
 
         self.format = format
@@ -106,8 +113,9 @@ class AttributeBase(ModelObject):
             elif self.order.startswith("desc"):
                 self.order = Attribute.DESC
             else:
-                raise ArgumentError("Unknown ordering '%s' for attributes"
-                                    " '%s'" % (order, self.ref))
+                raise ArgumentError(
+                    "Unknown ordering '%s' for attributes '%s'" % (order, self.ref)
+                )
         else:
             self.order = None
 
@@ -122,13 +130,15 @@ class AttributeBase(ModelObject):
             return False
 
         # TODO: should we be this strict?
-        return self.name == other.name \
-            and self.label == other.label \
-            and self.info == other.info \
-            and self.description == other.description \
-            and self.format == other.format \
-            and self.expression == other.expression \
+        return (
+            self.name == other.name
+            and self.label == other.label
+            and self.info == other.info
+            and self.description == other.description
+            and self.format == other.format
+            and self.expression == other.expression
             and self.missing_value == other.missing_value
+        )
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -167,17 +177,19 @@ class AttributeBase(ModelObject):
         return not self.expression
 
     def localized_ref(self, locale):
-        """Returns localized attribute reference for locale `locale`.
-        """
+        """Returns localized attribute reference for locale `locale`."""
         if locale:
             if not self.locales:
-                raise ArgumentError("Attribute '{}' is not loalizable "
-                                    "(localization {} requested)"
-                                    .format(self.name, locale))
+                raise ArgumentError(
+                    "Attribute '{}' is not loalizable "
+                    "(localization {} requested)".format(self.name, locale)
+                )
             elif locale not in self.locales:
-                raise ArgumentError("Attribute '{}' has no localization {} "
-                                    "(has: {})"
-                                    .format(self.name, locale, self.locales))
+                raise ArgumentError(
+                    "Attribute '{}' has no localization {} (has: {})".format(
+                        self.name, locale, self.locales
+                    )
+                )
             else:
                 locale_suffix = "." + locale
         else:
@@ -202,10 +214,20 @@ class AttributeBase(ModelObject):
 
 
 class Attribute(AttributeBase):
-
-    def __init__(self, name, label=None, description=None, order=None,
-                 info=None, format=None, dimension=None, locales=None,
-                 missing_value=None, expression=None, **kwargs):
+    def __init__(
+        self,
+        name,
+        label=None,
+        description=None,
+        order=None,
+        info=None,
+        format=None,
+        dimension=None,
+        locales=None,
+        missing_value=None,
+        expression=None,
+        **kwargs,
+    ):
         """Dimension attribute object. Also used as fact detail.
 
         Attributes:
@@ -232,11 +254,16 @@ class Attribute(AttributeBase):
         dimension has to be assigned after copying.
         """
 
-        super(Attribute, self).__init__(name=name, label=label,
-                                        description=description, order=order,
-                                        info=info, format=format,
-                                        missing_value=missing_value,
-                                        expression=expression)
+        super(Attribute, self).__init__(
+            name=name,
+            label=label,
+            description=description,
+            order=order,
+            info=info,
+            format=format,
+            missing_value=missing_value,
+            expression=expression,
+        )
         self._dimension = None
 
         self.dimension = dimension
@@ -249,23 +276,25 @@ class Attribute(AttributeBase):
     @dimension.setter
     def dimension(self, dimension):
         if dimension:
-            self.ref = dimension.name + '.' + str(self.name)
+            self.ref = dimension.name + "." + str(self.name)
         else:
             self.ref = str(self.name)
         self._dimension = dimension
 
     def __deepcopy__(self, memo):
         # Note: copied attribute is disowned
-        return Attribute(self.name,
-                         self.label,
-                         dimension=None,
-                         locales=copy.deepcopy(self.locales, memo),
-                         order=copy.deepcopy(self.order, memo),
-                         description=self.description,
-                         info=copy.deepcopy(self.info, memo),
-                         format=self.format,
-                         missing_value=self.missing_value,
-                         expression=self.expression)
+        return Attribute(
+            self.name,
+            self.label,
+            dimension=None,
+            locales=copy.deepcopy(self.locales, memo),
+            order=copy.deepcopy(self.order, memo),
+            description=self.description,
+            info=copy.deepcopy(self.info, memo),
+            format=self.format,
+            missing_value=self.missing_value,
+            expression=self.expression,
+        )
 
     def __eq__(self, other):
         if not super(Attribute, self).__eq__(other):
@@ -293,10 +322,22 @@ class Measure(AttributeBase):
     """Cube measure attribute – a numerical attribute that can be
     aggregated."""
 
-    def __init__(self, name, label=None, description=None, order=None,
-                 info=None, format=None, missing_value=None, aggregates=None,
-                 formula=None, expression=None, nonadditive=None,
-                 window_size=None, **kwargs):
+    def __init__(
+        self,
+        name,
+        label=None,
+        description=None,
+        order=None,
+        info=None,
+        format=None,
+        missing_value=None,
+        aggregates=None,
+        formula=None,
+        expression=None,
+        nonadditive=None,
+        window_size=None,
+        **kwargs,
+    ):
         """Create a measure attribute. Properties in addition to the attribute
         base properties:
 
@@ -316,11 +357,16 @@ class Measure(AttributeBase):
 
         String representation of a `Measure` returns its full reference.
         """
-        super(Measure, self).__init__(name=name, label=label,
-                                      description=description, order=order,
-                                      info=info, format=format,
-                                      missing_value=None,
-                                      expression=expression)
+        super(Measure, self).__init__(
+            name=name,
+            label=label,
+            description=description,
+            order=order,
+            info=info,
+            format=format,
+            missing_value=None,
+            expression=expression,
+        )
 
         self.formula = formula
         self.aggregates = aggregates
@@ -334,29 +380,33 @@ class Measure(AttributeBase):
         elif nonadditive == "time":
             self.nonadditive = "time"
         else:
-            raise ModelError("Unknown non-additive measure type '%s'"
-                             % nonadditive)
+            raise ModelError("Unknown non-additive measure type '%s'" % nonadditive)
 
     def __deepcopy__(self, memo):
-        return Measure(self.name, self.label,
-                       order=copy.deepcopy(self.order, memo),
-                       description=self.description,
-                       info=copy.deepcopy(self.info, memo),
-                       format=self.format,
-                       missing_value=self.missing_value,
-                       aggregates=self.aggregates,
-                       expression=self.expression,
-                       formula=self.formula,
-                       nonadditive=self.nonadditive,
-                       window_size=self.window_size)
+        return Measure(
+            self.name,
+            self.label,
+            order=copy.deepcopy(self.order, memo),
+            description=self.description,
+            info=copy.deepcopy(self.info, memo),
+            format=self.format,
+            missing_value=self.missing_value,
+            aggregates=self.aggregates,
+            expression=self.expression,
+            formula=self.formula,
+            nonadditive=self.nonadditive,
+            window_size=self.window_size,
+        )
 
     def __eq__(self, other):
         if not super(Measure, self).__eq__(other):
             return False
 
-        return self.aggregates == other.aggregates \
-                and self.formula == other.formula \
-                and self.window_size == other.window_size
+        return (
+            self.aggregates == other.aggregates
+            and self.formula == other.formula
+            and self.window_size == other.window_size
+        )
 
     def __hash__(self):
         return hash(self.ref)
@@ -388,15 +438,17 @@ class Measure(AttributeBase):
                 measure = self.name
                 function = agg
 
-            aggregate = MeasureAggregate(name=name,
-                                         label=None,
-                                         description=self.description,
-                                         order=self.order,
-                                         info=self.info,
-                                         format=self.format,
-                                         measure=measure,
-                                         function=function,
-                                         window_size=self.window_size)
+            aggregate = MeasureAggregate(
+                name=name,
+                label=None,
+                description=self.description,
+                order=self.order,
+                info=self.info,
+                format=self.format,
+                measure=measure,
+                function=function,
+                window_size=self.window_size,
+            )
 
             aggregates.append(aggregate)
 
@@ -404,11 +456,23 @@ class Measure(AttributeBase):
 
 
 class MeasureAggregate(AttributeBase):
-
-    def __init__(self, name, label=None, description=None, order=None,
-                 info=None, format=None, missing_value=None, measure=None,
-                 function=None, formula=None, expression=None,
-                 nonadditive=None, window_size=None, **kwargs):
+    def __init__(
+        self,
+        name,
+        label=None,
+        description=None,
+        order=None,
+        info=None,
+        format=None,
+        missing_value=None,
+        measure=None,
+        function=None,
+        formula=None,
+        expression=None,
+        nonadditive=None,
+        window_size=None,
+        **kwargs,
+    ):
         """Masure aggregate
 
         Attributes:
@@ -422,12 +486,16 @@ class MeasureAggregate(AttributeBase):
           the measure in most of the times)
         """
 
-        super(MeasureAggregate, self).__init__(name=name, label=label,
-                                               description=description,
-                                               order=order, info=info,
-                                               format=format,
-                                               missing_value=missing_value,
-                                               expression=expression)
+        super(MeasureAggregate, self).__init__(
+            name=name,
+            label=label,
+            description=description,
+            order=order,
+            info=info,
+            format=format,
+            missing_value=missing_value,
+            expression=expression,
+        )
 
         self.function = function
         self.formula = formula
@@ -436,29 +504,33 @@ class MeasureAggregate(AttributeBase):
         self.window_size = window_size
 
     def __deepcopy__(self, memo):
-        return MeasureAggregate(self.name,
-                                self.label,
-                                order=copy.deepcopy(self.order, memo),
-                                description=self.description,
-                                info=copy.deepcopy(self.info, memo),
-                                format=self.format,
-                                missing_value=self.missing_value,
-                                measure=self.measure,
-                                function=self.function,
-                                formula=self.formula,
-                                expression=self.expression,
-                                nonadditive=self.nonadditive,
-                                window_size=self.window_size)
+        return MeasureAggregate(
+            self.name,
+            self.label,
+            order=copy.deepcopy(self.order, memo),
+            description=self.description,
+            info=copy.deepcopy(self.info, memo),
+            format=self.format,
+            missing_value=self.missing_value,
+            measure=self.measure,
+            function=self.function,
+            formula=self.formula,
+            expression=self.expression,
+            nonadditive=self.nonadditive,
+            window_size=self.window_size,
+        )
 
     def __eq__(self, other):
         if not super(MeasureAggregate, self).__eq__(other):
             return False
 
-        return str(self.function) == str(other.function) \
-            and self.measure == other.measure \
-            and self.formula == other.formula \
-            and self.nonadditive == other.nonadditive \
+        return (
+            str(self.function) == str(other.function)
+            and self.measure == other.measure
+            and self.formula == other.formula
+            and self.nonadditive == other.nonadditive
             and self.window_size == other.window_size
+        )
 
     def __hash__(self):
         return hash(self.ref)
@@ -489,8 +561,11 @@ class MeasureAggregate(AttributeBase):
         """
         if self.measure:
             if self.expression:
-                raise ModelError("Aggregate '{}' has both measure and "
-                                 "expression set".format(self.ref))
+                raise ModelError(
+                    "Aggregate '{}' has both measure and expression set".format(
+                        self.ref
+                    )
+                )
             return set([self.measure])
 
         if not self.expression:
@@ -539,14 +614,14 @@ def collect_dependencies(attributes, all_attributes):
     Returns a list of sorted attribute references.
     """
 
-    dependencies = {attr.ref:attr.dependencies for attr in all_attributes}
+    dependencies = {attr.ref: attr.dependencies for attr in all_attributes}
     # depsorted contains attribute names in order of dependencies starting
     # with base attributes (those that don't depend on anything, directly
     # represented by columns) and ending with derived attributes
-    depsorted = depsort_attributes([attr.ref for attr in attributes],
-                                   dependencies)
+    depsorted = depsort_attributes([attr.ref for attr in attributes], dependencies)
 
     return depsorted
+
 
 def depsort_attributes(attributes, all_dependencies):
     """Returns a sorted list of attributes by their dependencies. `attributes`
@@ -579,8 +654,7 @@ def depsort_attributes(attributes, all_dependencies):
         required |= set(attr_deps) - seen
 
     # Remaining dependencies to be processed (not base attributes)
-    remaining = {attr:all_dependencies[attr] for attr in seen
-                 if attr not in bases}
+    remaining = {attr: all_dependencies[attr] for attr in seen if attr not in bases}
 
     sorted_deps = []
 
@@ -588,8 +662,7 @@ def depsort_attributes(attributes, all_dependencies):
         base = bases.pop()
         sorted_deps.append(base)
 
-        dependants = [attr for attr, deps in list(remaining.items())
-                      if base in deps]
+        dependants = [attr for attr, deps in list(remaining.items()) if base in deps]
 
         for attr in dependants:
             # Remove the current dependency
@@ -602,8 +675,8 @@ def depsort_attributes(attributes, all_dependencies):
 
     if remaining:
         remaining_str = ", ".join(sorted(remaining))
-        raise ExpressionError("Circular attribute reference (remaining: {})"
-                              .format(remaining_str))
+        raise ExpressionError(
+            "Circular attribute reference (remaining: {})".format(remaining_str)
+        )
 
     return sorted_deps
-

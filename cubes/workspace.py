@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 
-
 import os.path
 
 from collections import OrderedDict, defaultdict
@@ -28,33 +27,33 @@ SLICER_INFO_KEYS = (
     "name",
     "label",
     "description",  # Workspace model description
-    "copyright",    # Copyright for the data
-    "license",      # Data license
-    "maintainer",   # Name (and maybe contact) of data maintainer
-    "contributors", # List of contributors
+    "copyright",  # Copyright for the data
+    "license",  # Data license
+    "maintainer",  # Name (and maybe contact) of data maintainer
+    "contributors",  # List of contributors
     "visualizers",  # List of dicts with url and label of server's visualizers
-    "keywords",     # List of keywords describing server's cubes
-    "related"       # List of dicts with related servers
+    "keywords",  # List of keywords describing server's cubes
+    "related",  # List of dicts with related servers
 )
+
 
 def interpret_config_value(value):
     if value is None:
         return value
     if isinstance(value, compat.string_type):
-        if value.lower() in ('yes', 'true', 'on'):
+        if value.lower() in ("yes", "true", "on"):
             return True
-        elif value.lower() in ('no', 'false', 'off'):
+        elif value.lower() in ("no", "false", "off"):
             return False
     return value
 
 
 def config_items_to_dict(items):
-    return dict([ (k, interpret_config_value(v)) for (k, v) in items ])
+    return dict([(k, interpret_config_value(v)) for (k, v) in items])
 
 
 class Workspace(object):
-    def __init__(self, config=None, stores=None, load_base_model=True,
-                 **_options):
+    def __init__(self, config=None, stores=None, load_base_model=True, **_options):
         """Creates a workspace. `config` should be a `ConfigParser` or a
         path to a config file. `stores` should be a dictionary of store
         configurations, a `ConfigParser` or a path to a ``stores.ini`` file.
@@ -85,13 +84,13 @@ class Workspace(object):
 
         # Logging
         # =======
-        #Log to file or console
+        # Log to file or console
         if config.has_option("workspace", "log"):
             self.logger = get_logger(path=config.get("workspace", "log"))
         else:
             self.logger = get_logger()
 
-        #Change to log level if necessary
+        # Change to log level if necessary
         if config.has_option("workspace", "log_level"):
             level = config.get("workspace", "log_level").upper()
             self.logger.setLevel(level)
@@ -148,10 +147,12 @@ class Workspace(object):
         elif config.has_section("info"):
             info = dict(config.items("info"))
             if "visualizer" in info:
-                info["visualizers"] = [{
-                    "label": info.get("label", info.get("name", "Default")),
-                    "url": info["visualizer"]
-                }]
+                info["visualizers"] = [
+                    {
+                        "label": info.get("label", info.get("name", "Default")),
+                        "url": info["visualizer"],
+                    }
+                ]
 
             for key in SLICER_INFO_KEYS:
                 self.info[key] = info.get(key)
@@ -169,20 +170,21 @@ class Workspace(object):
             try:
                 store_config.read(stores)
             except Exception as e:
-                raise ConfigurationError("Unable to read stores from %s. "
-                                         "Reason: %s" % (stores, str(e) ))
+                raise ConfigurationError(
+                    "Unable to read stores from %s. Reason: %s" % (stores, str(e))
+                )
 
             for store in store_config.sections():
-                self._register_store_dict(store,
-                                          dict(store_config.items(store)))
+                self._register_store_dict(store, dict(store_config.items(store)))
 
         elif isinstance(stores, dict):
             for name, store in list(stores.items()):
                 self._register_store_dict(name, store)
 
         elif stores is not None:
-            raise ConfigurationError("Unknown stores description object: %s" %
-                                                    (type(stores)))
+            raise ConfigurationError(
+                "Unknown stores description object: %s" % (type(stores))
+            )
 
         # Calendar
         # ========
@@ -197,10 +199,11 @@ class Workspace(object):
         else:
             first_weekday = 0
 
-        self.logger.debug("Workspace calendar timezone: %s first week day: %s"
-                          % (timezone, first_weekday))
-        self.calendar = Calendar(timezone=timezone,
-                                 first_weekday=first_weekday)
+        self.logger.debug(
+            "Workspace calendar timezone: %s first week day: %s"
+            % (timezone, first_weekday)
+        )
+        self.calendar = Calendar(timezone=timezone, first_weekday=first_weekday)
 
         # Register Stores
         # ===============
@@ -315,8 +318,10 @@ class Workspace(object):
             except KeyError:
                 raise ConfigurationError("Store '%s' has no type specified" % name)
             else:
-                self.logger.warn("'backend' is depreciated, use 'type' for "
-                                 "store (in %s)." % str(name))
+                self.logger.warn(
+                    "'backend' is depreciated, use 'type' for "
+                    "store (in %s)." % str(name)
+                )
 
         self.register_store(name, type_, **info)
 
@@ -357,17 +362,15 @@ class Workspace(object):
         nsname = config.pop("namespace", None)
 
         if model:
-            self.import_model(model, store=name, namespace=nsname,
-                              provider=provider)
+            self.import_model(model, store=name, namespace=nsname, provider=provider)
         elif provider:
             # Import empty model and register the provider
-            self.import_model({}, store=name, namespace=nsname,
-                              provider=provider)
+            self.import_model({}, store=name, namespace=nsname, provider=provider)
 
         self.logger.debug("Registered store '%s'" % name)
 
     def _store_for_model(self, metadata):
-        """Returns a store for model specified in `metadata`. """
+        """Returns a store for model specified in `metadata`."""
         store_name = metadata.get("store")
         if not store_name and "info" in metadata:
             store_name = metadata["info"].get("store")
@@ -379,8 +382,9 @@ class Workspace(object):
     # TODO: this is very confusing process, needs simplification
     # TODO: change this to: add_model_provider(provider, info, store, languages, ns)
 
-    def import_model(self, model=None, provider=None, store=None,
-                     translations=None, namespace=None):
+    def import_model(
+        self, model=None, provider=None, store=None, translations=None, namespace=None
+    ):
         """Registers the `model` in the workspace. `model` can be a
         metadata dictionary, filename, path to a model bundle directory or a
         URL.
@@ -403,12 +407,11 @@ class Workspace(object):
         # 1. Metadata
         # -----------
         # Make sure that the metadata is a dictionary
-        # 
+        #
         # TODO: Use "InlineModelProvider" and "FileBasedModelProvider"
 
         if store and not isinstance(store, compat.string_type):
-            raise ArgumentError("Store should be provided by name "
-                                "(as a string).")
+            raise ArgumentError("Store should be provided by name (as a string).")
 
         # 1. Model Metadata
         # -----------------
@@ -417,23 +420,25 @@ class Workspace(object):
         # TODO: Use "InlineModelProvider" and "FileBasedModelProvider"
 
         if isinstance(model, compat.string_type):
-            self.logger.debug("Importing model from %s. "
-                              "Provider: %s Store: %s NS: %s"
-                              % (model, provider, store, namespace))
+            self.logger.debug(
+                "Importing model from %s. "
+                "Provider: %s Store: %s NS: %s" % (model, provider, store, namespace)
+            )
             path = model
             if self.models_dir and not os.path.isabs(path):
                 path = os.path.join(self.models_dir, path)
             model = read_model_metadata(path)
         elif isinstance(model, dict):
-            self.logger.debug("Importing model from dictionary. "
-                              "Provider: %s Store: %s NS: %s"
-                              % (provider, store, namespace))
+            self.logger.debug(
+                "Importing model from dictionary. "
+                "Provider: %s Store: %s NS: %s" % (provider, store, namespace)
+            )
         elif model is None:
             model = {}
         else:
-            raise ConfigurationError("Unknown model '%s' "
-                                     "(should be a filename or a dictionary)"
-                                     % model)
+            raise ConfigurationError(
+                "Unknown model '%s' (should be a filename or a dictionary)" % model
+            )
 
         # 2. Model provider
         # -----------------
@@ -453,8 +458,7 @@ class Workspace(object):
         # Link the model with store
         store = store or model.get("store")
 
-        if store or (hasattr(provider, "requires_store") \
-                        and provider.requires_store()):
+        if store or (hasattr(provider, "requires_store") and provider.requires_store()):
             provider.bind(self.get_store(store))
 
         # 4. Namespace
@@ -563,9 +567,7 @@ class Workspace(object):
         3. look in the default (global) namespace
         """
 
-        return find_dimension(name, locale,
-                              namespace or self.namespace,
-                              provider)
+        return find_dimension(name, locale, namespace or self.namespace, provider)
 
     def _browser_options(self, cube):
         """Returns browser configuration options for `cube`. The options are
@@ -622,9 +624,14 @@ class Workspace(object):
         if not browser_name:
             raise ConfigurationError("No store specified for cube '%s'" % cube)
 
-        browser = ext.browser(browser_name, cube, store=store,
-                              locale=locale, calendar=self.calendar,
-                              **options)
+        browser = ext.browser(
+            browser_name,
+            cube,
+            store=store,
+            locale=locale,
+            calendar=self.calendar,
+            **options,
+        )
 
         # TODO: remove this once calendar is used in all backends
         browser.calendar = self.calendar
