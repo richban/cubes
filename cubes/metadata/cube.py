@@ -1,22 +1,28 @@
-# -*- encoding: utf-8 -*-
 """Cube logical model"""
 
 from collections import OrderedDict, defaultdict
 
+from .. import compat
 from ..common import assert_all_instances, get_localizable_attributes
+from ..errors import (
+    ArgumentError,
+    ModelError,
+    NoSuchAttributeError,
+    NoSuchDimensionError,
+)
 
 # TODO: This should belong here
 from ..query.statutils import aggregate_calculator_labels
-from ..errors import ModelError, ArgumentError, NoSuchAttributeError
-from ..errors import NoSuchDimensionError
+from .attributes import (
+    Attribute,
+    Measure,
+    MeasureAggregate,
+    collect_dependencies,
+    create_list_of,
+    expand_attribute_metadata,
+)
 from .base import ModelObject, object_dict
-from .attributes import Attribute, Measure, MeasureAggregate
-from .attributes import create_list_of, collect_dependencies
-from .attributes import expand_attribute_metadata
 from .dimension import Dimension
-
-from .. import compat
-
 
 __all__ = [
     "Cube",
@@ -213,7 +219,7 @@ class Cube(ModelObject):
         store=None,
         **options,
     ):
-        super(Cube, self).__init__(name, label, description, info)
+        super().__init__(name, label, description, info)
 
         if dimensions and dimension_links:
             raise ModelError(
@@ -313,7 +319,7 @@ class Cube(ModelObject):
             return self._measures[name]
         except KeyError:
             raise NoSuchAttributeError(
-                "Cube '%s' has no measure '%s'" % (self.name, name)
+                f"Cube '{self.name}' has no measure '{name}'"
             )
 
     def get_measures(self, measures):
@@ -345,7 +351,7 @@ class Cube(ModelObject):
             return self._aggregates[name]
         except KeyError:
             raise NoSuchAttributeError(
-                "Cube '%s' has no measure aggregate '%s'" % (self.name, name)
+                f"Cube '{self.name}' has no measure aggregate '{name}'"
             )
 
     def get_aggregates(self, names=None):
@@ -482,7 +488,7 @@ class Cube(ModelObject):
                 return measure
 
         raise NoSuchAttributeError(
-            "Cube '%s' has no attribute '%s'" % (self.name, attribute)
+            f"Cube '{self.name}' has no attribute '{attribute}'"
         )
 
     def get_attributes(self, attributes=None, aggregated=False):
@@ -519,7 +525,7 @@ class Cube(ModelObject):
                 attr = everything[name]
             except KeyError:
                 raise NoSuchAttributeError(
-                    "Unknown attribute '{}' in cube '{}'".format(name, self.name)
+                    f"Unknown attribute '{name}' in cube '{self.name}'"
                 )
             result.append(attr)
 
@@ -592,7 +598,7 @@ class Cube(ModelObject):
 
         if not obj:
             raise NoSuchDimensionError(
-                "Requested dimension should not be none (cube '{}')".format(self.name)
+                f"Requested dimension should not be none (cube '{self.name}')"
             )
 
         name = str(obj)
@@ -600,7 +606,7 @@ class Cube(ModelObject):
             return self._dimensions[str(name)]
         except KeyError:
             raise NoSuchDimensionError(
-                "cube '{}' has no dimension '{}'".format(self.name, name)
+                f"cube '{self.name}' has no dimension '{name}'"
             )
 
     @property
@@ -632,7 +638,7 @@ class Cube(ModelObject):
         provided in an user interface or through server API.
         """
 
-        out = super(Cube, self).to_dict(**options)
+        out = super().to_dict(**options)
 
         out["locale"] = self.locale
         out["category"] = self.category
@@ -754,7 +760,7 @@ class Cube(ModelObject):
         return results
 
     def localize(self, trans):
-        super(Cube, self).localized(trans)
+        super().localized(trans)
 
         self.category = trans.get("category", self.category)
 
@@ -836,7 +842,7 @@ def expand_cube_metadata(metadata):
 
     metadata = dict(metadata)
 
-    if not "name" in metadata:
+    if "name" not in metadata:
         raise ModelError("Cube has no name")
 
     links = metadata.get("dimensions", [])

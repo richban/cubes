@@ -1,18 +1,21 @@
-# -*- encoding: utf-8 -*-
 
 
 import copy
 import re
-
 from collections import OrderedDict
 
-from .base import ModelObject, object_dict
-from .attributes import Attribute, expand_attribute_metadata
-from ..errors import ModelError, ArgumentError, HierarchyError
-from ..errors import NoSuchAttributeError
-from ..errors import ModelInconsistencyError, TemplateRequired
-from ..common import get_localizable_attributes
 from .. import compat
+from ..common import get_localizable_attributes
+from ..errors import (
+    ArgumentError,
+    HierarchyError,
+    ModelError,
+    ModelInconsistencyError,
+    NoSuchAttributeError,
+    TemplateRequired,
+)
+from .attributes import Attribute, expand_attribute_metadata
+from .base import ModelObject, object_dict
 
 __all__ = [
     "Dimension",
@@ -284,7 +287,7 @@ class Dimension(Conceptual):
         Note: The hierarchy will be owned by the dimension.
         """
 
-        super(Dimension, self).__init__(name, label, description, info)
+        super().__init__(name, label, description, info)
 
         self.role = role
         self.cardinality = cardinality
@@ -433,7 +436,7 @@ class Dimension(Conceptual):
         coalescing value"""
         if isinstance(obj, compat.string_type):
             if obj not in self._levels:
-                raise KeyError("No level %s in dimension %s" % (obj, self.name))
+                raise KeyError(f"No level {obj} in dimension {self.name}")
             return self._levels[obj]
         elif isinstance(obj, Level):
             return obj
@@ -450,7 +453,7 @@ class Dimension(Conceptual):
             return self._default_hierarchy
         if isinstance(obj, compat.string_type):
             if obj not in self._hierarchies:
-                raise ModelError("No hierarchy %s in dimension %s" % (obj, self.name))
+                raise ModelError(f"No hierarchy {obj} in dimension {self.name}")
             return self._hierarchies[obj]
         elif isinstance(obj, Hierarchy):
             return obj
@@ -471,7 +474,7 @@ class Dimension(Conceptual):
                 return self._attributes[name]
             except KeyError:
                 raise NoSuchAttributeError(
-                    "Unknown attribute '{}' in dimension '{}'".format(name, self.name),
+                    f"Unknown attribute '{name}' in dimension '{self.name}'",
                     name,
                 )
 
@@ -598,7 +601,7 @@ class Dimension(Conceptual):
     def to_dict(self, **options):
         """Return dictionary representation of the dimension"""
 
-        out = super(Dimension, self).to_dict(**options)
+        out = super().to_dict(**options)
 
         hierarchy_limits = options.get("hierarchy_limits")
 
@@ -641,15 +644,15 @@ class Dimension(Conceptual):
         results = []
 
         if not self.levels:
-            results.append(("error", "No levels in dimension '%s'" % (self.name)))
+            results.append(("error", f"No levels in dimension '{self.name}'"))
             return results
 
         if not self._hierarchies:
-            msg = "No hierarchies in dimension '%s'" % (self.name)
+            msg = f"No hierarchies in dimension '{self.name}'"
             if self.is_flat:
                 level = self.levels[0]
                 results.append(
-                    ("default", msg + ", flat level '%s' will be used" % (level.name))
+                    ("default", f"{msg}, flat level '{level.name}' will be used")
                 )
             elif len(self.levels) > 1:
                 results.append(
@@ -795,7 +798,7 @@ def _create_hierarchies(metadata, levels, template):
             if not template:
                 raise ModelError(
                     "Can not specify just a hierarchy name "
-                    "({}) if there is no template".format(md)
+                    f"({md}) if there is no template"
                 )
             hier = template.hierarchy(md)
         else:
@@ -833,7 +836,7 @@ class Hierarchy(Conceptual):
         dimension.
         """
 
-        super(Hierarchy, self).__init__(name, label, description, info)
+        super().__init__(name, label, description, info)
 
         if not levels:
             raise ModelInconsistencyError(
@@ -1037,7 +1040,7 @@ class Hierarchy(Conceptual):
 
         """
 
-        out = super(Hierarchy, self).to_dict(**options)
+        out = super().to_dict(**options)
 
         levels = [str(l) for l in self.levels]
 
@@ -1140,7 +1143,7 @@ class Level(ModelObject):
         nonadditive=None,
         description=None,
     ):
-        super(Level, self).__init__(name, label, description, info)
+        super().__init__(name, label, description, info)
 
         self.cardinality = cardinality
         self.role = role
@@ -1186,9 +1189,7 @@ class Level(ModelObject):
                 self.order_attribute = self.attribute(order_attribute)
             except NoSuchAttributeError:
                 raise NoSuchAttributeError(
-                    "Unknown order attribute {} in level {}".format(
-                        order_attribute, self.name
-                    )
+                    f"Unknown order attribute {order_attribute} in level {self.name}"
                 )
         else:
             self.order_attribute = self.attributes[0]
@@ -1250,7 +1251,7 @@ class Level(ModelObject):
     def to_dict(self, full_attribute_names=False, **options):
         """Convert to dictionary"""
 
-        out = super(Level, self).to_dict(**options)
+        out = super().to_dict(**options)
 
         out["role"] = self.role
 
@@ -1336,7 +1337,7 @@ def expand_dimension_metadata(metadata, expand_levels=False):
     else:
         metadata = dict(metadata)
 
-    if not "name" in metadata:
+    if "name" not in metadata:
         raise ModelError("Dimension has no name")
 
     name = metadata["name"]
@@ -1396,7 +1397,7 @@ def expand_hierarchy_metadata(metadata):
     except KeyError:
         raise ModelError("Hierarchy has no name")
 
-    if not "levels" in metadata:
+    if "levels" not in metadata:
         raise ModelError("Hierarchy '%s' has no levels" % name)
 
     return metadata

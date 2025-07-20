@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 """Cube logical model"""
 
 import json
@@ -6,11 +5,14 @@ import os
 import re
 import shutil
 
+# NOTE: In Python 3.7+, regular dict maintains insertion order
+# OrderedDict can be replaced with dict for better performance
 from collections import OrderedDict
+from typing import Any
 
-from ..common import IgnoringDictionary, to_label
-from ..errors import ModelError, ArgumentError, CubesError
 from .. import compat
+from ..common import IgnoringDictionary, to_label
+from ..errors import ArgumentError, CubesError, ModelError
 
 __all__ = (
     "ModelObject",
@@ -21,13 +23,19 @@ __all__ = (
 )
 
 
-class ModelObject(object):
-    """Base classs for all model objects."""
+class ModelObject:
+    """Base class for all model objects."""
 
-    localizable_attributes = []
-    localizable_lists = []
+    localizable_attributes: list[str] = []
+    localizable_lists: list[str] = []
 
-    def __init__(self, name=None, label=None, description=None, info=None):
+    def __init__(
+        self,
+        name: str | None = None,
+        label: str | None = None,
+        description: str | None = None,
+        info: dict[str, Any] | None = None,
+    ) -> None:
         """Initializes model object basics. Assures that the `info` is a
         dictionary."""
 
@@ -36,7 +44,7 @@ class ModelObject(object):
         self.description = description
         self.info = info or {}
 
-    def to_dict(self, create_label=None, **options):
+    def to_dict(self, create_label: bool | None = None, **options: Any) -> dict[str, Any]:
         """Convert to a dictionary. If `with_mappings` is ``True`` (which is
         default) then `joins`, `mappings`, `fact` and `options` are included.
         Should be set to ``False`` when returning a dictionary that will be
@@ -57,7 +65,7 @@ class ModelObject(object):
 
         return out
 
-    def localized(self, context):
+    def localized(self, context: Any) -> "ModelObject":
         """Returns a copy of the cube translated with `translation`"""
 
         acopy = self.__class__.__new__(self.__class__)
@@ -90,7 +98,12 @@ class ModelObject(object):
         return acopy
 
 
-def object_dict(objects, by_ref=False, error_message=None, error_dict=None):
+def object_dict(
+    objects: list[ModelObject],
+    by_ref: bool = False,
+    error_message: str | None = None,
+    error_dict: dict[str, Any] | None = None,
+) -> OrderedDict[str, ModelObject]:
     """Make an ordered dictionary from model objects `objects` where keys are
     object names. If `for_ref` is `True` then object's `ref` (reference) is
     used instead of object name. Keys are supposed to be unique in the list,
@@ -147,7 +160,7 @@ def _json_from_url(url):
     return desc
 
 
-def read_model_metadata(source):
+def read_model_metadata(source: str | Any) -> dict[str, Any]:
     """Reads a model description from `source` which can be a filename, URL,
     file-like object or a path to a directory. Returns a model description
     dictionary."""
@@ -191,10 +204,10 @@ def read_model_metadata_bundle(path):
 
     # Find model object files and load them
 
-    if not "dimensions" in model:
+    if "dimensions" not in model:
         model["dimensions"] = []
 
-    if not "cubes" in model:
+    if "cubes" not in model:
         model["cubes"] = []
 
     for dirname, dirnames, filenames in os.walk(path):

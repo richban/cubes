@@ -1,13 +1,18 @@
-# -*- coding: utf-8 -*-
 """Logical model model providers."""
 
 import copy
 
-from ..errors import ModelError, TemplateRequired, CubesError, BackendError
-from ..errors import NoSuchDimensionError, NoSuchCubeError
-from .localization import LocalizationContext
+from ..errors import (
+    BackendError,
+    CubesError,
+    ModelError,
+    NoSuchCubeError,
+    NoSuchDimensionError,
+    TemplateRequired,
+)
 from .cube import Cube
 from .dimension import Dimension
+from .localization import LocalizationContext
 
 __all__ = [
     "ModelProvider",
@@ -43,18 +48,18 @@ def link_cube(cube, locale, provider=None, namespace=None, ignore_missing=False)
 
     for dim_name in list(cube.dimension_links.keys()):
         if dim_name in linked:
-            raise ModelError("Dimension '{}' linked twice".format(dim_name))
+            raise ModelError(f"Dimension '{dim_name}' linked twice")
 
         try:
             dim = find_dimension(
                 dim_name, locale, provider=provider, namespace=namespace
             )
 
-        except TemplateRequired as e:
+        except TemplateRequired:
             raise ModelError("Dimension template '%s' missing" % dim_name)
 
         if not dim and not ignore_missing:
-            raise CubesError("Dimension '{}' not found.".format(dim_name))
+            raise CubesError(f"Dimension '{dim_name}' not found.")
 
         cube.link_dimension(dim)
 
@@ -153,7 +158,7 @@ def _lookup_dimension(name, templates, namespace, provider):
     raise NoSuchDimensionError("Dimension '%s' not found" % name, name=name)
 
 
-class ModelProvider(object):
+class ModelProvider:
     """Abstract class – factory for model object. Currently empty and used
     only to find other model providers."""
 
@@ -437,7 +442,7 @@ class StaticModelProvider(ModelProvider):
     __extension_aliases__ = ["default"]
 
     def __init__(self, *args, **kwargs):
-        super(StaticModelProvider, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         # Initialization code goes here...
 
     def list_cubes(self):

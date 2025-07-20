@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 
 
 from .. import compat
+
 # Global Context – top level namespace and objects in other namespaces
 # Local Context - within object being translated
 
@@ -11,7 +11,7 @@ from .. import compat
 # TODO: Change this to use translation lookup instead of just one translation
 
 
-class ModelObjectLocalizationContext(object):
+class ModelObjectLocalizationContext:
     def __init__(self, translation, context, object_type, object_name):
         self.translation = translation
         self.object_type = object_type
@@ -42,7 +42,7 @@ class ModelObjectLocalizationContext(object):
         return ModelObjectLocalizationContext(trans, self.context, object_type, name)
 
 
-class LocalizationContext(object):
+class LocalizationContext:
     def __init__(self, translation, parent=None):
         self.translation = translation
         self.parent = parent

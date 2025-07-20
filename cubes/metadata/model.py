@@ -1,22 +1,8 @@
-# -*- encoding: utf-8 -*-
 """Logical model."""
 
-import re
-import copy
 
-from collections import OrderedDict, defaultdict
 
-from expressions import inspect_variables
 
-from .common import IgnoringDictionary, to_label
-from .common import assert_all_instances
-from .common import get_localizable_attributes
-from .errors import ModelError, ArgumentError, ExpressionError, HierarchyError
-from .errors import NoSuchAttributeError, NoSuchDimensionError
-from .errors import ModelInconsistencyError, TemplateRequired
-from .metadata import expand_cube_metadata, expand_dimension_links
-from .metadata import expand_dimension_metadata, expand_level_metadata
-from . import compat
 
 
 __all__ = [

@@ -54,15 +54,15 @@ _WEEKDAY_NUMBERS = {
 
 RELATIVE_FINE_TIME_RX = re.compile(
     r"(?P<offset>\d+)?"
-    "(?P<unit>\w+)"
-    "(?P<direction>(ago|forward))"
+    r"(?P<unit>\w+)"
+    r"(?P<direction>(ago|forward))"
 )
 
 
 RELATIVE_TRUNCATED_TIME_RX = re.compile(
     r"(?P<direction>(last|next))"
-    "(?P<offset>\d+)?"
-    "(?P<unit>\w+)"
+    r"(?P<offset>\d+)?"
+    r"(?P<unit>\w+)"
 )
 
 month_to_quarter = lambda month: ((month - 1) // 3) + 1

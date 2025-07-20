@@ -1,14 +1,13 @@
-# -*- encoding: utf-8 -*-
-
 
 import copy
+from typing import Any
 
 from expressions import inspect_variables
 
-from .base import ModelObject
 from .. import compat
-from ..errors import ModelError, ArgumentError, ExpressionError
 from ..common import get_localizable_attributes
+from ..errors import ArgumentError, ExpressionError, ModelError
+from .base import ModelObject
 
 __all__ = [
     "AttributeBase",
@@ -85,17 +84,17 @@ class AttributeBase(ModelObject):
 
     def __init__(
         self,
-        name,
-        label=None,
-        description=None,
-        order=None,
-        info=None,
-        format=None,
-        missing_value=None,
-        expression=None,
-        **kwargs,
-    ):
-        super(AttributeBase, self).__init__(name, label, description, info)
+        name: str,
+        label: str | None = None,
+        description: str | None = None,
+        order: str | None = None,
+        info: dict[str, Any] | None = None,
+        format: str | None = None,
+        missing_value: str | int | float | bool | None = None,
+        expression: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(name, label, description, info)
 
         self.format = format
         self.missing_value = missing_value
@@ -146,8 +145,8 @@ class AttributeBase(ModelObject):
     def __hash__(self):
         return hash(self.ref)
 
-    def to_dict(self, **options):
-        d = super(AttributeBase, self).to_dict(**options)
+    def to_dict(self, **options: Any) -> dict[str, Any]:
+        d = super().to_dict(**options)
 
         d["format"] = self.format
         d["order"] = self.order
@@ -169,7 +168,7 @@ class AttributeBase(ModelObject):
 
     def localize(self, trans):
         """Localize the attribute, allow localization of the format."""
-        super(AttributeBase, self).localized(trans)
+        super().localized(trans)
         self.format = trans.get("format", self.format)
 
     @property
@@ -181,14 +180,12 @@ class AttributeBase(ModelObject):
         if locale:
             if not self.locales:
                 raise ArgumentError(
-                    "Attribute '{}' is not loalizable "
-                    "(localization {} requested)".format(self.name, locale)
+                    f"Attribute '{self.name}' is not loalizable "
+                    f"(localization {locale} requested)"
                 )
             elif locale not in self.locales:
                 raise ArgumentError(
-                    "Attribute '{}' has no localization {} (has: {})".format(
-                        self.name, locale, self.locales
-                    )
+                    f"Attribute '{self.name}' has no localization {locale} (has: {self.locales})"
                 )
             else:
                 locale_suffix = "." + locale
@@ -198,7 +195,7 @@ class AttributeBase(ModelObject):
         return self.ref + locale_suffix
 
     @property
-    def dependencies(self):
+    def dependencies(self) -> set[str]:
         """Set of attributes that the `attribute` depends on. If the
         `attribute` is an expresion, then returns the direct dependencies from
         the expression. If the attribute is an aggregate with an unary
@@ -254,7 +251,7 @@ class Attribute(AttributeBase):
         dimension has to be assigned after copying.
         """
 
-        super(Attribute, self).__init__(
+        super().__init__(
             name=name,
             label=label,
             description=description,
@@ -297,7 +294,7 @@ class Attribute(AttributeBase):
         )
 
     def __eq__(self, other):
-        if not super(Attribute, self).__eq__(other):
+        if not super().__eq__(other):
             return False
 
         # TODO: we are not comparing dimension (owner) here
@@ -308,7 +305,7 @@ class Attribute(AttributeBase):
 
     def to_dict(self, **options):
         # FIXME: Depreciated key "full_name" in favour of "ref"
-        d = super(Attribute, self).to_dict(**options)
+        d = super().to_dict(**options)
 
         d["locales"] = self.locales
 
@@ -357,7 +354,7 @@ class Measure(AttributeBase):
 
         String representation of a `Measure` returns its full reference.
         """
-        super(Measure, self).__init__(
+        super().__init__(
             name=name,
             label=label,
             description=description,
@@ -399,7 +396,7 @@ class Measure(AttributeBase):
         )
 
     def __eq__(self, other):
-        if not super(Measure, self).__eq__(other):
+        if not super().__eq__(other):
             return False
 
         return (
@@ -412,7 +409,7 @@ class Measure(AttributeBase):
         return hash(self.ref)
 
     def to_dict(self, **options):
-        d = super(Measure, self).to_dict(**options)
+        d = super().to_dict(**options)
         d["formula"] = self.formula
         d["aggregates"] = self.aggregates
         d["window_size"] = self.window_size
@@ -486,7 +483,7 @@ class MeasureAggregate(AttributeBase):
           the measure in most of the times)
         """
 
-        super(MeasureAggregate, self).__init__(
+        super().__init__(
             name=name,
             label=label,
             description=description,
@@ -521,7 +518,7 @@ class MeasureAggregate(AttributeBase):
         )
 
     def __eq__(self, other):
-        if not super(MeasureAggregate, self).__eq__(other):
+        if not super().__eq__(other):
             return False
 
         return (
@@ -540,7 +537,7 @@ class MeasureAggregate(AttributeBase):
         return not self.expression and not self.function
 
     def to_dict(self, **options):
-        d = super(MeasureAggregate, self).to_dict(**options)
+        d = super().to_dict(**options)
         d["function"] = self.function
         d["formula"] = self.formula
         d["measure"] = self.measure
@@ -562,9 +559,7 @@ class MeasureAggregate(AttributeBase):
         if self.measure:
             if self.expression:
                 raise ModelError(
-                    "Aggregate '{}' has both measure and expression set".format(
-                        self.ref
-                    )
+                    f"Aggregate '{self.ref}' has both measure and expression set"
                 )
             return set([self.measure])
 
@@ -646,7 +641,7 @@ def depsort_attributes(attributes, all_dependencies):
         try:
             attr_deps = all_dependencies[attr]
         except KeyError as e:
-            raise ExpressionError("Unknown attribute '{}'".format(e))
+            raise ExpressionError(f"Unknown attribute '{e}'")
 
         if not attr_deps:
             bases.add(attr)
@@ -676,7 +671,7 @@ def depsort_attributes(attributes, all_dependencies):
     if remaining:
         remaining_str = ", ".join(sorted(remaining))
         raise ExpressionError(
-            "Circular attribute reference (remaining: {})".format(remaining_str)
+            f"Circular attribute reference (remaining: {remaining_str})"
         )
 
     return sorted_deps

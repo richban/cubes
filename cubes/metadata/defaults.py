@@ -1,10 +1,9 @@
-# -*- encoding: utf-8 -*-
 """Metadata validation"""
 
-import pkgutil
 import json
-
+import pkgutil
 from collections import namedtuple
+
 from .. import compat
 
 try:
@@ -29,7 +28,7 @@ def validate_model(metadata):
     return validator.validate()
 
 
-class ModelMetadataValidator(object):
+class ModelMetadataValidator:
     def __init__(self, metadata):
         self.metadata = metadata
 
