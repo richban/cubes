@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict
 from textwrap import dedent
-from pkg_resources import iter_entry_points
+from importlib.metadata import entry_points
 
 from .common import decamelize, coalesce_options
 from .errors import ArgumentError, InternalError, BackendError
@@ -178,7 +178,7 @@ class ExtensionFinder(object):
 
     def discover(self, name=None):
         """Find all entry points."""
-        for obj in iter_entry_points(group=self.group, name=name):
+        for obj in entry_points(group=self.group, name=name):
             ext = _Extension(self.type_, obj)
             self.extensions[ext.name] = ext
 

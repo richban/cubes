@@ -153,16 +153,16 @@ class FactCountDistinctFunction(AggregateFunction):
 
 
 class avg(ReturnTypeFromArgs):
-    pass
+    inherit_cache = True
 
 
 # Works with PostgreSQL
 class stddev(ReturnTypeFromArgs):
-    pass
+    inherit_cache = True
 
 
 class variance(ReturnTypeFromArgs):
-    pass
+    inherit_cache = True
 
 
 _functions = (

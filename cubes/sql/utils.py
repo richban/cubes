@@ -131,7 +131,7 @@ def order_query(statement, order, natural_order=None, labels=None):
     # Get logical attributes from column labels (see logical_labels
     # description for more information why this step is necessary)
 
-    columns = OrderedDict(list(zip(labels, statement.columns)))
+    columns = OrderedDict(list(zip(labels, statement.selected_columns)))
 
     # Normalize order
     # ---------------
@@ -139,7 +139,7 @@ def order_query(statement, order, natural_order=None, labels=None):
     # `order`). If element of the `order` list is a string, then it is
     # converted to (`string`, ``None``).
 
-    if SPLIT_DIMENSION_NAME in statement.columns:
+    if SPLIT_DIMENSION_NAME in [c.name for c in statement.selected_columns]:
         split_column = sql.expression.column(SPLIT_DIMENSION_NAME)
         final_order[SPLIT_DIMENSION_NAME] = split_column
 

@@ -78,6 +78,15 @@ class ModelObject(object):
                 for obj in getattr(acopy, attr):
                     obj_context = context.object_localization(attr, obj.name)
                     list_copy.append(obj.localized(obj_context))
+                
+                # For properties like 'measures' that are read-only, set the underlying attribute
+                if hasattr(acopy, f'_{attr}'):
+                    # Set the private attribute that backs the property
+                    from collections import OrderedDict
+                    private_dict = OrderedDict((obj.name, obj) for obj in list_copy)
+                    setattr(acopy, f'_{attr}', private_dict)
+                else:
+                    # For direct attributes, set them normally
                     setattr(acopy, attr, list_copy)
 
         return acopy
