@@ -23,7 +23,8 @@ class AggregatesTestCase(CubesTestCaseBase):
                         Column("price", Integer),
                         Column("discount", Integer)
                         )
-        self.metadata.create_all()
+        with self.engine.begin() as conn:
+            self.metadata.create_all(conn)
 
         data = [
             ( 1, 2010, 1, 100,  0),

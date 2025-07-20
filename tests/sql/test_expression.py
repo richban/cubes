@@ -19,22 +19,23 @@ class SQLExpressionTestCase(SQLTestCase):
     @classmethod
     def setUpClass(self):
         self.engine = sa.create_engine(CONNECTION)
-        metadata = sa.MetaData(self.engine)
+        metadata = sa.MetaData()
         self.table = sa.Table("data", metadata,
                         sa.Column("id", sa.Integer),
                         sa.Column("price", sa.Integer),
                         sa.Column("quantity", sa.Integer)
                     )
-        metadata.create_all()
+        with self.engine.begin() as conn:
+            metadata.create_all(conn)
 
-        insert = self.table.insert()
         data = [[1, 10, 1],
                 [2, 20, 1],
                 [3, 40, 2],
                 [4, 80, 3]]
 
-        for row in data:
-            self.engine.execute(insert.values(row))
+        with self.engine.begin() as conn:
+            for row in data:
+                conn.execute(self.table.insert().values({"id": row[0], "price": row[1], "quantity": row[2]}))
 
         self.bases = ["id", "price", "quantity"]
         self.columns = {attr:self.table.columns[attr]
@@ -55,14 +56,15 @@ class SQLExpressionTestCase(SQLTestCase):
         by pulling out the data from the table and testing whether the
         returned sequences are equal."""
 
-        stmt = sa.select([left.label("value")], from_obj=self.table)
-        result = self.engine.execute(stmt)
-        left_result = [row["value"] for row in result]
+        stmt = sa.select(left.label("value")).select_from(self.table)
+        with self.engine.begin() as conn:
+            result = conn.execute(stmt)
+        left_result = [row["value"] for row in result.mappings()]
 
-
-        stmt = sa.select([right.label("value")], from_obj=self.table)
-        result = self.engine.execute(stmt)
-        right_result = [row["value"] for row in result]
+        stmt = sa.select(right.label("value")).select_from(self.table)
+        with self.engine.begin() as conn:
+            result = conn.execute(stmt)
+        right_result = [row["value"] for row in result.mappings()]
 
         self.assertCountEqual(left_result, right_result)
 

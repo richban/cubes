@@ -332,7 +332,7 @@ class StarSchema(object):
     """
 
     def __init__(self, label, metadata, mappings, fact, fact_key='id',
-                 joins=None, tables=None, schema=None):
+                 joins=None, tables=None, schema=None, engine=None):
 
         # TODO: expectation is, that the snowlfake is already localized, the
         # owner of the snowflake should generate one snowflake per locale.
@@ -349,6 +349,7 @@ class StarSchema(object):
         self.joins = joins or []
         self.schema = schema
         self.table_expressions = tables or {}
+        self.engine = engine
 
         # Cache
         # -----
@@ -521,11 +522,33 @@ class StarSchema(object):
 
         coalesced_schema = schema or self.schema
 
+        # First check if table is already in metadata (from create_table)
+        full_name = f"{coalesced_schema}.{name}" if coalesced_schema else name
+        for table_name, existing_table in self.metadata.tables.items():
+            if existing_table.name == name and existing_table.schema == coalesced_schema:
+                return existing_table
+        
+        # If not in metadata, try to autoload it
         try:
-            table = sa.Table(name,
-                             self.metadata,
-                             autoload=True,
-                             schema=coalesced_schema)
+            # In SQLAlchemy 2.x, we need an engine for autoload_with
+            engine = self.engine
+            if not engine and hasattr(self.metadata, 'bind'):
+                engine = self.metadata.bind
+            elif not engine and self.metadata.tables:
+                # Try to get engine from an existing table
+                first_table = next(iter(self.metadata.tables.values()))
+                if hasattr(first_table, 'bind'):
+                    engine = first_table.bind
+            
+            if engine:
+                # Check if table exists before trying to autoload it
+                inspector = sa.inspect(engine)
+                if not inspector.has_table(name, schema=coalesced_schema):
+                    raise sa.exc.NoSuchTableError(f"Table {name} not found")
+                table = sa.Table(name, self.metadata, autoload_with=engine, schema=coalesced_schema)
+            else:
+                # No engine available - assume table doesn't exist
+                raise sa.exc.NoSuchTableError(f"Table {name} not found (no engine available)")
 
         except sa.exc.NoSuchTableError:
             in_schema = (" in schema '{}'"
