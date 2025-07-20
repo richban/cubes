@@ -2,7 +2,7 @@ import unittest
 import cubes
 import os
 
-from .common import DATA_PATH
+from tests.common import DATA_PATH
 
 @unittest.skip
 class CombinationsTestCase(unittest.TestCase):

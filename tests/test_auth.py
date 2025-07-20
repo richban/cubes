@@ -1,7 +1,7 @@
 # -*- coding=utf -*-
 import unittest
 from cubes import *
-from .common import CubesTestCaseBase
+from tests.common import CubesTestCaseBase
 
 from json import dumps
 

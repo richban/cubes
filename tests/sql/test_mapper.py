@@ -3,7 +3,7 @@ import unittest
 from cubes.sql.mapper import StarSchemaMapper, distill_naming
 from cubes.metadata import Attribute
 
-from ..common import CubesTestCaseBase, create_provider
+from tests.common import CubesTestCaseBase, create_provider
 
 class MapperTestCase(CubesTestCaseBase):
     def setUp(self):

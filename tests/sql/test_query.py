@@ -17,7 +17,7 @@ from cubes.sql.query import JoinKey, to_join_key, Join, to_join
 from cubes.sql.query import QueryContext
 from cubes.errors import ArgumentError, ModelError
 from cubes.metadata import create_list_of, Attribute
-from .common import create_table, SQLTestCase
+from tests.sql.common import create_table, SQLTestCase
 
 CONNECTION = "sqlite://"
 
@@ -63,7 +63,7 @@ DIM_SIZE = {
 class SchemaBasicsTestCase(SQLTestCase):
     def setUp(self):
         self.engine = sa.create_engine(CONNECTION)
-        self.md = sa.MetaData(bind=self.engine)
+        self.md = sa.MetaData()
         self.test_fact = create_table(self.engine, self.md, BASE_FACT)
 
     # TODO: do the same for a joined table and aliased joined table

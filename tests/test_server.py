@@ -2,11 +2,14 @@
 import unittest
 from cubes import __version__
 import json
-from .common import CubesTestCaseBase
+from tests.common import CubesTestCaseBase
 from sqlalchemy import MetaData, Table, Column, Integer, String
 
 from werkzeug.test import Client
-from werkzeug.wrappers import BaseResponse
+try:
+    from werkzeug.wrappers import BaseResponse
+except ImportError:
+    from werkzeug.wrappers import Response as BaseResponse
 
 from cubes.server import create_server
 from cubes import compat

@@ -1,5 +1,5 @@
 # -*- coding=utf -*-
-from .common import CubesTestCaseBase, create_provider
+from tests.common import CubesTestCaseBase, create_provider
 from cubes.errors import *
 from cubes.calendar import *
 from datetime import datetime

@@ -8,11 +8,11 @@ requirements = [
 ]
 
 extras = {
-    'sql': 'sqlalchemy>= 0.9.0',
-    'slicer': 'werkzeug',
+    'sql': 'sqlalchemy>=2.0.0',
+    'slicer': ['werkzeug'],
     'html': 'jinja2',
     'all': [f'cubes[{extra}]' for extra in ['sql', 'slicer', 'html']],
-    'dev': ['cubes[all]', 'sphinx', 'pytest'],
+    'dev': ['cubes[all]', 'sphinx'],
 }
 
 setup(

@@ -8,7 +8,7 @@ from unittest import TestCase, skip
 
 from cubes.errors import ExpressionError
 from cubes.sql.expressions import SQLExpressionCompiler, SQLExpressionContext
-from .common import SQLTestCase
+from tests.sql.common import SQLTestCase
 
 #
 

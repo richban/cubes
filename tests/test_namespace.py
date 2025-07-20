@@ -1,6 +1,6 @@
 import unittest
 from cubes.namespace import Namespace
-# from .common import CubesTestCaseBase
+# from tests.common import CubesTestCaseBase
 
 class NamespaceTestCase(unittest.TestCase):
     def test_create(self):

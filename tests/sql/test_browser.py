@@ -11,7 +11,7 @@ from cubes.sql.mapper import map_base_attributes, StarSchemaMapper
 from cubes.sql.mapper import distill_naming
 
 from .dw.demo import create_demo_dw, TinyDemoModelProvider
-from .common import SQLTestCase
+from tests.sql.common import SQLTestCase
 
 #
 # TODO: this should be workspace-free test

@@ -6,7 +6,7 @@ from cubes.query import cut_from_dict
 from cubes.errors import CubesError, ArgumentError
 from cubes.errors import HierarchyError, NoSuchDimensionError
 
-from .common import CubesTestCaseBase, create_provider
+from tests.common import CubesTestCaseBase, create_provider
 
 
 class CutsTestCase(CubesTestCaseBase):

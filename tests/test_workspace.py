@@ -9,7 +9,7 @@ from cubes.stores import Store
 from cubes.metadata import *
 from cubes.server.base import read_slicer_config
 
-from .common import CubesTestCaseBase
+from tests.common import CubesTestCaseBase
 # FIXME: remove this once satisfied
 
 class WorkspaceTestCaseBase(CubesTestCaseBase):

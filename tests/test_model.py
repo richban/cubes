@@ -11,7 +11,7 @@ from cubes.metadata import create_list_of
 from cubes.metadata import Dimension, Hierarchy, Cube
 
 import copy
-from .common import TESTS_PATH, CubesTestCaseBase
+from tests.common import TESTS_PATH, CubesTestCaseBase
 
 DIM_DATE_DESC = {
     "name": "date",
