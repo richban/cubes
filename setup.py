@@ -3,15 +3,16 @@ from setuptools import setup, find_packages
 requirements = [
     "python-dateutil",
     "jsonschema",
-    "expressions>=0.2.3"
+    "expressions>=0.2.3",
+    "setuptools",  # for pkg_resources
 ]
 
 extras = {
     'sql': 'sqlalchemy>= 0.9.0',
     'slicer': 'werkzeug',
-    'html': 'jinja',
-    'all': ['cubes[%s]' % extra for extra in ['sql', 'slicer', 'html']],
-    'dev': ['cubes[all]', 'sphinx'],
+    'html': 'jinja2',
+    'all': [f'cubes[{extra}]' for extra in ['sql', 'slicer', 'html']],
+    'dev': ['cubes[all]', 'sphinx', 'pytest'],
 }
 
 setup(
@@ -32,13 +33,16 @@ setup(
         'cubes.server': ['templates/*.html'],
     },
 
+    python_requires='>=3.11',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
         'Intended Audience :: Science/Research',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
         'Topic :: Database',
         'Topic :: Scientific/Engineering',
         'Topic :: Utilities'

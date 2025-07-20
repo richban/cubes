@@ -3,7 +3,6 @@
 import sqlalchemy
 import csv
 import codecs
-from cubes import compat
 
 
 class UTF8Recoder:
@@ -18,7 +17,7 @@ class UTF8Recoder:
         return self
 
     def __next__(self):
-        return compat.to_unicode(next(self.reader))
+        return str(next(self.reader))
 
 
 class UnicodeReader:

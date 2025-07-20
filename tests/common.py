@@ -62,7 +62,7 @@ class CubesTestCaseBase(unittest.TestCase):
             workspace.register_default_store("sql", engine=self.engine)
 
         if model:
-            if isinstance(model, compat.string_type):
+            if isinstance(model, str):
                 model = self.model_path(model)
             workspace.import_model(model)
 
@@ -73,7 +73,4 @@ class CubesTestCaseBase(unittest.TestCase):
         for row in data:
             insert = table.insert().values(row)
             self.engine.execute(insert)
-
-    if not compat.py3k:
-        assertCountEqual = unittest.TestCase.assertItemsEqual
 

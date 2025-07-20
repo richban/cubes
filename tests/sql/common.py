@@ -5,7 +5,6 @@
 import unittest
 import sqlalchemy as sa
 from datetime import datetime
-from cubes import compat
 
 # TODO: use the data.py version
 def create_table(engine, md, desc):
@@ -78,6 +77,3 @@ class SQLTestCase(unittest.TestCase):
     def table(self, name):
         """Return fully reflected table `name`"""
         return self.metadata.table(name, autoload=True)
-
-    if not compat.py3k:
-        assertCountEqual = unittest.TestCase.assertItemsEqual

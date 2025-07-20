@@ -795,7 +795,7 @@ class AggregationResult(object):
         Example use::
 
             for row in result.table_rows(dimension):
-                print "%s: %s" % (row.label, row.record["fact_count"])
+                print(f"{row.label}: {row.record['fact_count']}")
 
         `dimension` has to be :class:`cubes.Dimension` object. Raises
         `TypeError` when cut for `dimension` is not `PointCut`.

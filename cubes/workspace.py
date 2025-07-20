@@ -650,7 +650,7 @@ class Workspace(object):
         try:
             type_, options = self.store_infos[name]
         except KeyError:
-            raise ConfigurationError("Unknown store '{}'".format(name))
+            raise ConfigurationError(f"Unknown store '{name}'")
 
         # TODO: temporary hack to pass store name and store type
         store = ext.store(type_, store_type=type_, **options)

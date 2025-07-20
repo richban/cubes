@@ -67,9 +67,9 @@ class CuboidsTestCase(unittest.TestCase):
         dims = self.cube.dimensions
         results = cubes.common.all_cuboids(dims)
         # for r in results:
-        #     print "=== COMBO:"
+        #     print("=== COMBO:")
         #     for c in r:
-        #         print "---     %s: %s" % (c[0][0].name, c[1])
+        #         print(f"---     {c[0][0].name}: {c[1]}")
 
         self.assertEqual(len(results), 863)
 

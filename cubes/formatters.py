@@ -55,43 +55,8 @@ def _jinja_env():
     return env
 
 
-def csv_generator_p2(records, fields, include_header=True, header=None,
-                     dialect=csv.excel):
-    def _row_string(row):
-        writer.writerow(row)
-        # Fetch UTF-8 output from the queue ...
-        data = queue.getvalue()
-        data = compat.to_unicode(data)
-        # ... and reencode it into the target encoding
-        data = encoder.encode(data)
-        # empty queue
-        queue.truncate(0)
-
-        return data
-
-    queue = compat.StringIO()
-    writer = csv.writer(queue, dialect=dialect)
-    encoder = codecs.getincrementalencoder("utf-8")()
-
-    if include_header:
-        yield _row_string(header or fields)
-
-    for record in records:
-        row = []
-        for field in fields:
-            value = record.get(field)
-            if isinstance(value, compat.string_type):
-                row.append(value.encode("utf-8"))
-            elif value is not None:
-                row.append(compat.text_type(value))
-            else:
-                row.append(None)
-
-        yield _row_string(row)
-
-
-def csv_generator_p3(records, fields, include_header=True, header=None,
-                     dialect=csv.excel):
+def csv_generator(records, fields, include_header=True, header=None,
+                  dialect=csv.excel):
     def _row_string(row):
         writer.writerow(row)
         data = queue.getvalue()
@@ -99,7 +64,8 @@ def csv_generator_p3(records, fields, include_header=True, header=None,
 
         return data
 
-    queue = compat.StringIO()
+    from io import StringIO
+    queue = StringIO()
     writer = csv.writer(queue, dialect=dialect)
 
     if include_header:
@@ -127,12 +93,6 @@ def xlsx_generator(records, fields, include_header=True, header=None):
     return fn
 
 
-if compat.py3k:
-    csv_generator = csv_generator_p3
-else:
-    csv_generator = csv_generator_p2
-
-
 class JSONLinesGenerator(object):
     def __init__(self, iterable, separator='\n'):
         """Creates a generator that yields one JSON record per record from
@@ -145,7 +105,7 @@ class JSONLinesGenerator(object):
     def __iter__(self):
         for obj in self.iterable:
             string = self.encoder.encode(obj)
-            yield "{}{}".format(string, self.separator)
+            yield f"{string}{self.separator}"
 
 
 class SlicerJSONEncoder(json.JSONEncoder):
