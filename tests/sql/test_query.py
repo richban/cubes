@@ -200,12 +200,12 @@ class SchemaBasicsTestCase(SQLTestCase):
 
         selection = [schema.column("category"), schema.column("total")]
 
-        statement = sql.expression.select(selection,
-                                          from_obj=star)
-        result = self.engine.execute(statement)
+        statement = sql.expression.select(*selection).select_from(star)
+        with self.engine.begin() as conn:
+            result = conn.execute(statement)
         amounts = []
 
-        for row in result:
+        for row in result.mappings():
             # We are testing proper column labeling
             amounts.append(row["total"])
 
@@ -322,7 +322,7 @@ class SchemaUtilitiesTestCase(unittest.TestCase):
 class SchemaJoinsTestCase(SQLTestCase):
     def setUp(self):
         self.engine = sa.create_engine(CONNECTION)
-        self.md = sa.MetaData(bind=self.engine)
+        self.md = sa.MetaData()
         self.fact = create_table(self.engine, self.md, BASE_FACT)
         self.dim_category = create_table(self.engine, self.md, DIM_CATEGORY)
         self.dim_size = create_table(self.engine, self.md, DIM_SIZE)
@@ -514,10 +514,10 @@ class SchemaJoinsTestCase(SQLTestCase):
         # Check selectable statement
         star = schema.get_star(["code", "size"])
         selection = [schema.column("code"), schema.column("size")]
-        select = sql.expression.select(selection,
-                                       from_obj=star)
-        result = self.engine.execute(select)
-        sizes = [r["size"] for r in result]
+        select = sql.expression.select(*selection).select_from(star)
+        with self.engine.begin() as conn:
+            result = conn.execute(select)
+        sizes = [r["size"] for r in result.mappings()]
         self.assertCountEqual(sizes, [2, 1, 4, 1])
 
     def test_fact_is_included(self):
@@ -537,10 +537,10 @@ class SchemaJoinsTestCase(SQLTestCase):
 
         star = schema.get_star(["size"])
         selection = [schema.column("size")]
-        select = sql.expression.select(selection,
-                                       from_obj=star)
-        result = self.engine.execute(select)
-        sizes = [r["size"] for r in result]
+        select = sql.expression.select(*selection).select_from(star)
+        with self.engine.begin() as conn:
+            result = conn.execute(select)
+        sizes = [r["size"] for r in result.mappings()]
         self.assertCountEqual(sizes, [2, 1, 4, 1])
 
     def test_snowflake_joins(self):
@@ -563,10 +563,10 @@ class SchemaJoinsTestCase(SQLTestCase):
         # arm
         # star = schema.star(["category_label", "size_label"])
         star = schema.get_star(["size_label", "category_label"])
-        select = sql.expression.select([schema.column("size_label")],
-                                       from_obj=star)
-        result = self.engine.execute(select)
-        sizes = [r["size_label"] for r in result]
+        select = sql.expression.select(schema.column("size_label")).select_from(star)
+        with self.engine.begin() as conn:
+            result = conn.execute(select)
+        sizes = [r["size_label"] for r in result.mappings()]
         self.assertCountEqual(sizes, ["medium", "small", "large", "small"])
 
     def test_snowflake_aliased_joins(self):
@@ -598,10 +598,10 @@ class SchemaJoinsTestCase(SQLTestCase):
         # Construct the select for the very last attribute in the snowflake
         # arm
         star = schema.get_star(["size_label"])
-        select = sql.expression.select([schema.column("size_label")],
-                                       from_obj=star)
-        result = self.engine.execute(select)
-        sizes = [r["size_label"] for r in result]
+        select = sql.expression.select(schema.column("size_label")).select_from(star)
+        with self.engine.begin() as conn:
+            result = conn.execute(select)
+        sizes = [r["size_label"] for r in result.mappings()]
         self.assertCountEqual(sizes, ["medium", "small", "large", "small"])
 
     def test_join_method_detail(self):
@@ -625,11 +625,8 @@ class SchemaJoinsTestCase(SQLTestCase):
             "size":  Column(None, "dim_category", "size", None, None),
         }
 
-        fact_statement = sa.select(self.fact.columns, from_obj=self.fact,
-                                   whereclause=self.fact.c.category == 'A')
-        cat_statement = sa.select(self.dim_category.columns,
-                                  from_obj=self.dim_category,
-                                  whereclause=self.dim_category.c.category == 'A')
+        fact_statement = sa.select(*self.fact.columns).select_from(self.fact).where(self.fact.c.category == 'A')
+        cat_statement = sa.select(*self.dim_category.columns).select_from(self.dim_category).where(self.dim_category.c.category == 'A')
 
         tables = {
             "dim_category": cat_statement
@@ -652,17 +649,17 @@ class SchemaJoinsTestCase(SQLTestCase):
 
         star = schema.get_star(["size"])
         selection = [schema.column("size")]
-        select = sql.expression.select(selection,
-                                       from_obj=star)
-        result = self.engine.execute(select)
-        sizes = [r["size"] for r in result]
+        select = sql.expression.select(*selection).select_from(star)
+        with self.engine.begin() as conn:
+            result = conn.execute(select)
+        sizes = [r["size"] for r in result.mappings()]
 
         self.assertCountEqual(sizes, [2])
 
 class QueryTestCase(SQLTestCase):
     def setUp(self):
         self.engine = sa.create_engine(CONNECTION)
-        self.md = sa.MetaData(bind=self.engine)
+        self.md = sa.MetaData()
         self.fact = create_table(self.engine, self.md, BASE_FACT)
 
         mappings = {

@@ -17,7 +17,7 @@ class SQLRequestLogHandler(RequestLogHandler):
         self.url = url
         self.engine = create_sqlalchemy_engine(url, options)
 
-        metadata = MetaData(bind=self.engine)
+        metadata = MetaData()
 
         logging.getLogger('sqlalchemy.engine').setLevel("DEBUG")
         logging.getLogger('sqlalchemy.pool').setLevel("DEBUG")

@@ -26,7 +26,7 @@ class CubesTestCaseBase(unittest.TestCase):
 
         if self.sql_engine:
             self.engine = create_engine(self.sql_engine)
-            self.metadata = MetaData(bind=self.engine)
+            self.metadata = MetaData()
         else:
             self.engine = None
             self.metadata = None
@@ -69,8 +69,9 @@ class CubesTestCaseBase(unittest.TestCase):
         return workspace
 
     def load_data(self, table, data):
-        self.engine.execute(table.delete())
-        for row in data:
-            insert = table.insert().values(row)
-            self.engine.execute(insert)
+        with self.engine.begin() as conn:
+            conn.execute(table.delete())
+            for row in data:
+                insert = table.insert().values(row)
+                conn.execute(insert)
 

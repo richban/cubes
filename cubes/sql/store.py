@@ -6,8 +6,8 @@ try:
     import sqlalchemy as sa
     import sqlalchemy.sql as sql
     from sqlalchemy.engine import reflection
-    from sqlalchemy.orm.query import QueryContext
     from sqlalchemy.schema import Index
+    # QueryContext was removed in SQLAlchemy 2.x - no longer needed
 except ImportError:
     from ..common import MissingPackage
 
@@ -175,8 +175,7 @@ class SQLStore(Store):
         if metadata:
             self.metadata = metadata
         else:
-            self.metadata = sa.MetaData(bind=self.connectable,
-                                        schema=self.schema)
+            self.metadata = sa.MetaData(schema=self.schema)
 
     # TODO: make a separate SQL utils function
     def _drop_table(self, table, schema, force=False):
@@ -197,10 +196,12 @@ class SQLStore(Store):
         if view_name in view_names:
             # Table reflects a view
             drop_statement = "DROP VIEW %s" % full_name
-            self.connectable.execute(drop_statement)
+            with self.connectable.begin() as conn:
+                conn.execute(sa.text(drop_statement))
         else:
             # Table reflects a table
-            table.drop(checkfirst=False)
+            with self.connectable.begin() as conn:
+                table.drop(conn, checkfirst=False)
 
     def validate(self, cube):
         """Validate physical representation of model. Returns a list of
@@ -369,8 +370,9 @@ class SQLStore(Store):
                 index = sa.schema.Index(name, column)
                 index.create(self.connectable)
 
-    def execute(self, *args, **kwargs):
-        return self.connectable.execute(*args, **kwargs)
+    def execute(self, statement, *args, **kwargs):
+        with self.connectable.begin() as conn:
+            return conn.execute(statement, *args, **kwargs)
 
     # FIXME: requires review
     def validate_model(self):
@@ -541,8 +543,9 @@ class SQLStore(Store):
 
         if insert:
             self.logger.debug("inserting into table '%s'" % str(table))
-            insert_statement = table.insert().from_select(statement.columns, statemnet)
-            self.connectable.execute(insert_statement)
+            insert_statement = table.insert().from_select(statement.columns, statement)
+            with self.connectable.begin() as conn:
+                conn.execute(insert_statement)
 
         return table
 

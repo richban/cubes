@@ -123,7 +123,7 @@ class SQLBrowser(AggregationBrowser):
             self.connectable = store
 
             metadata = kwargs.get("metadata",
-                                  sqlalchemy.MetaData(bind=self.connectable))
+                                  sqlalchemy.MetaData())
 
         # Options
         # -------
@@ -272,7 +272,7 @@ class SQLBrowser(AggregationBrowser):
         aggregation."""
         (statement, _) = self.denormalized_statement()
         statement = statement.limit(1)
-        result = self.connectable.execute(statement)
+        result = self.execute(statement)
         result.close()
 
         aggs = self.cube.all_aggregate_attributes
@@ -282,7 +282,7 @@ class SQLBrowser(AggregationBrowser):
                                                          cell=Cell(self.cube),
                                                          drilldown=dd,
                                                          for_summary=True)
-        result = self.connectable.execute(statement)
+        result = self.execute(statement)
         result.close()
 
     def provide_members(self, cell, dimension, depth=None, hierarchy=None,
@@ -346,7 +346,14 @@ class SQLBrowser(AggregationBrowser):
         """Execute the `statement`, optionally log it. Returns the result
         cursor."""
         self._log_statement(statement, label)
-        return self.connectable.execute(statement)
+        # SQLAlchemy 2.x: Use connection context instead of engine.execute()
+        if hasattr(self.connectable, 'begin'):
+            # It's an engine, need to create connection
+            with self.connectable.begin() as conn:
+                return conn.execute(statement)
+        else:
+            # It's already a connection
+            return self.connectable.execute(statement)
 
     def provide_aggregate(self, cell, aggregates, drilldown, split, order,
                           page, page_size, **options):
@@ -495,9 +502,7 @@ class SQLBrowser(AggregationBrowser):
 
         cell_condition = context.condition_for_cell(cell)
 
-        statement = sql.expression.select(selection,
-                                          from_obj=context.star,
-                                          whereclause=cell_condition)
+        statement = sql.expression.select(*selection).select_from(context.star).where(cell_condition)
 
         return (statement, context.get_labels(statement.columns))
 
@@ -580,11 +585,7 @@ class SQLBrowser(AggregationBrowser):
         else:
             selection += aggregate_cols
 
-        statement = sql.expression.select(selection,
-                                          from_obj=context.star,
-                                          use_labels=True,
-                                          whereclause=condition,
-                                          group_by=group_by)
+        statement = sql.expression.select(*selection).select_from(context.star).where(condition).group_by(*group_by)
 
         return (statement, context.get_labels(statement.columns))
 

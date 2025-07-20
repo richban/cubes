@@ -53,11 +53,15 @@ def create_table_from_csv(connectable, file_name, table_name, fields,
     framework, such as Brewery (http://databrewery.org).
     """
 
-    metadata = sqlalchemy.MetaData(bind=connectable)
+    metadata = sqlalchemy.MetaData()
 
     table = sqlalchemy.Table(table_name, metadata, autoload=False, schema=schema)
-    if table.exists():
-        table.drop(checkfirst=False)
+    
+    # Check if table exists and drop if needed (SQLAlchemy 2.x pattern)
+    inspector = sqlalchemy.inspect(connectable)
+    if inspector.has_table(table_name, schema=schema):
+        with connectable.begin() as conn:
+            table.drop(conn, checkfirst=False)
 
     type_map = {"integer": sqlalchemy.Integer,
                 "float": sqlalchemy.Numeric,
@@ -76,15 +80,16 @@ def create_table_from_csv(connectable, file_name, table_name, fields,
         table.append_column(col)
         field_names.append(field_name)
 
-    table.create()
+    # Create table with explicit connection
+    with connectable.begin() as conn:
+        table.create(conn)
 
     reader = UnicodeReader(open(file_name, 'rb'))
 
     # Skip header
     next(reader)
 
-    insert_command = table.insert()
-
-    for row in reader:
-        record = dict(list(zip(field_names, row)))
-        insert_command.execute(record)
+    with connectable.begin() as conn:
+        for row in reader:
+            record = dict(list(zip(field_names, row)))
+            conn.execute(table.insert().values(record))

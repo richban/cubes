@@ -42,21 +42,21 @@ def create_table(engine, md, desc):
 
         table.append_column(col)
 
-    md.create_all()
+    # Create tables and insert data with explicit connection (SQLAlchemy 2.x)
+    with engine.begin() as conn:
+        md.create_all(conn)
+        
+        buffer = []
+        for row in desc["data"]:
+            record = {}
+            for key, value in zip(desc["columns"], row):
+                if col_types[key] == "date":
+                    value = datetime.strptime(value, "%Y-%m-%d")
+                record[key] = value
+            buffer.append(record)
 
-    insert = table.insert()
-
-    buffer = []
-    for row in desc["data"]:
-        record = {}
-        for key, value in zip(desc["columns"], row):
-            if col_types[key] == "date":
-                value = datetime.strptime(value, "%Y-%m-%d")
-            record[key] = value
-        buffer.append(record)
-
-    for row in buffer:
-        engine.execute(table.insert(row))
+        for row in buffer:
+            conn.execute(table.insert().values(row))
 
     return table
 
