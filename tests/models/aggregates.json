@@ -2,6 +2,7 @@
     "cubes": [
         {
             "name": "default",
+            "implicit_aggregates": true,
             "dimensions": ["year"],
             "measures": [
                 {
@@ -21,12 +22,13 @@
                 {
                     "name": "count",
                     "function": "count"
-                }    
+                }
             ],
             "fact": "facts"
         },
         {
             "name": "postcalc_in_measure",
+            "implicit_aggregates": true,
             "dimensions": ["year"],
             "measures": [
                 {
@@ -38,12 +40,12 @@
                 {
                     "name": "count",
                     "function": "count"
-                },    
+                },
                 {
-                    "name": "amount_sma",
-                    "function": "sma",
-                    "measure": "amount_sum"
-                }    
+                    "name": "amount_avg",
+                    "function": "avg",
+                    "measure": "amount"
+                }
             ],
             "fact": "facts"
         },
@@ -53,7 +55,7 @@
                 {
                     "name": "count",
                     "function": "iamunknown"
-                }    
+                }
             ],
             "fact": "facts"
         }

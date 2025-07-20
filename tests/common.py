@@ -51,7 +51,7 @@ class CubesTestCaseBase(unittest.TestCase):
         class has an engine or `sql_engine` set, then the existing engine will
         be used as the default SQL store."""
 
-        raise NotImplementedError("Depreciated in this context")
+        from cubes import Workspace
         workspace = Workspace()
 
         if store:
@@ -59,7 +59,11 @@ class CubesTestCaseBase(unittest.TestCase):
             store_type = store.pop("type", "sql")
             workspace.register_default_store(store_type, **store)
         elif self.engine:
-            workspace.register_default_store("sql", engine=self.engine)
+            # Pass both engine and metadata so the store can find test tables
+            store_kwargs = {"engine": self.engine}
+            if hasattr(self, 'metadata') and self.metadata:
+                store_kwargs["metadata"] = self.metadata
+            workspace.register_default_store("sql", **store_kwargs)
 
         if model:
             if isinstance(model, str):

@@ -38,13 +38,6 @@ DIM_PRODUCT_DESC = {
 }
 
 
-class ModelTestCaseBase(unittest.TestCase):
-    def setUp(self):
-        self.models_path = os.path.join(TESTS_PATH, 'models')
-
-    def model_path(self, model):
-        return os.path.join(self.models_path, model)
-
 
 class AttributeTestCase(unittest.TestCase):
     """docstring for AttributeTestCase"""
@@ -110,6 +103,8 @@ class AttributeTestCase(unittest.TestCase):
         self.assertEqual("key", obj.name)
         self.assertEqual(obj, attr)
 
+
+from tests.common import TESTS_PATH, CubesTestCaseBase
 
 class MeasuresTestsCase(CubesTestCaseBase):
     def setUp(self):
@@ -908,6 +903,14 @@ class CubeTestCase(unittest.TestCase):
         self.assertEqual(measures[0].nonadditive, "time")
 
 
+class ModelTestCaseBase(unittest.TestCase):
+    def setUp(self):
+        self.models_path = os.path.join(TESTS_PATH, 'models')
+
+    def model_path(self, model):
+        return os.path.join(self.models_path, model)
+
+
 class ReadModelDescriptionTestCase(ModelTestCaseBase):
     def setUp(self):
         super(ReadModelDescriptionTestCase, self).setUp()
@@ -936,16 +939,4 @@ class ReadModelDescriptionTestCase(ModelTestCaseBase):
             path = self.model_path("model.json")
             desc = read_model_metadata_bundle(path)
 
-def test_suite():
-    suite = unittest.TestSuite()
 
-    suite.addTest(unittest.makeSuite(AttributeTestCase))
-    suite.addTest(unittest.makeSuite(LevelTestCase))
-    suite.addTest(unittest.makeSuite(HierarchyTestCase))
-    suite.addTest(unittest.makeSuite(DimensionTestCase))
-    suite.addTest(unittest.makeSuite(CubeTestCase))
-    suite.addTest(unittest.makeSuite(ModelTestCase))
-
-    suite.addTest(unittest.makeSuite(OldModelValidatorTestCase))
-
-    return suite

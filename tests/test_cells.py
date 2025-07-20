@@ -248,10 +248,4 @@ class CellInteractiveSlicingTestCase(CubesTestCaseBase):
         self.assertEqual([2010, 1, 2], cell.cut_for_dimension("date").path)
 
 
-def test_suite():
-    suite = unittest.TestSuite()
 
-    suite.addTest(unittest.makeSuite(AggregationBrowserTestCase))
-    suite.addTest(unittest.makeSuite(CellsAndCutsTestCase))
-
-    return suite

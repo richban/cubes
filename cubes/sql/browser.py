@@ -441,7 +441,9 @@ class SQLBrowser(AggregationBrowser):
             # Get the total cell count before the pagination
             #
             if self.include_cell_count:
-                count_statement = statement.alias().count()
+                # SQLAlchemy 2.x: Use select(func.count()).select_from(subquery) instead of alias().count()
+                subquery = statement.subquery()
+                count_statement = sql.expression.select(sql.functions.count()).select_from(subquery)
                 counts = self.execute(count_statement)
                 result.total_cell_count = counts.scalar()
 
@@ -504,7 +506,7 @@ class SQLBrowser(AggregationBrowser):
 
         statement = sql.expression.select(*selection).select_from(context.star).where(cell_condition)
 
-        return (statement, context.get_labels(statement.columns))
+        return (statement, context.get_labels(statement.selected_columns))
 
     # Aggregate
     # =========
@@ -585,9 +587,11 @@ class SQLBrowser(AggregationBrowser):
         else:
             selection += aggregate_cols
 
-        statement = sql.expression.select(*selection).select_from(context.star).where(condition).group_by(*group_by)
+        statement = sql.expression.select(*selection).select_from(context.star).where(condition)
+        if group_by:
+            statement = statement.group_by(*group_by)
 
-        return (statement, context.get_labels(statement.columns))
+        return (statement, context.get_labels(statement.selected_columns))
 
     def _log_statement(self, statement, label=None):
         label = "SQL(%s):" % label if label else "SQL:"

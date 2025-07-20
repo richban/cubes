@@ -4,7 +4,11 @@ import sys
 import traceback
 from collections import OrderedDict
 
-from flask import Blueprint, Response, request, g, current_app, safe_join, make_response
+from flask import Blueprint, Response, request, g, current_app, make_response
+try:
+    from flask import safe_join
+except ImportError:
+    from werkzeug.utils import safe_join
 from flask import render_template, redirect
 
 from ..workspace import Workspace, SLICER_INFO_KEYS

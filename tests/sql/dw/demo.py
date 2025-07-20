@@ -172,10 +172,11 @@ class TinyDemoDataWarehouse(object):
         self.engine = sa.create_engine(url)
 
         if recreate:
-            self.engine.execute("DROP SCHEMA IF EXISTS {} CASCADE".format(schema))
-            self.engine.execute("CREATE SCHEMA {}".format(schema))
+            with self.engine.begin() as conn:
+                conn.execute(sa.text("DROP SCHEMA IF EXISTS {} CASCADE".format(schema)))
+                conn.execute(sa.text("CREATE SCHEMA {}".format(schema)))
 
-        self.md = sa.MetaData(self.engine, schema=schema)
+        self.md = sa.MetaData(schema=schema)
         self.schema = schema
 
     def create_table(self, desc, name=None):
@@ -217,7 +218,8 @@ class TinyDemoDataWarehouse(object):
 
             table.append_column(col)
 
-        self.md.create_all()
+        with self.engine.begin() as conn:
+            self.md.create_all(conn)
 
         insert = table.insert()
 
@@ -235,8 +237,9 @@ class TinyDemoDataWarehouse(object):
             buffer.append(record)
 
         if buffer:
-            for row in buffer:
-                self.engine.execute(table.insert(row))
+            with self.engine.begin() as conn:
+                for row in buffer:
+                    conn.execute(table.insert().values(row))
 
         return table
 
@@ -254,7 +257,8 @@ class TinyDemoDataWarehouse(object):
                       sa.Column("month_sname", sa.String),
                       sa.Column("day",        sa.Integer))
 
-        self.md.create_all()
+        with self.engine.begin() as conn:
+            self.md.create_all(conn)
 
         start = date(2014,1,1)
         end = date(2016,12,31)
@@ -277,12 +281,14 @@ class TinyDemoDataWarehouse(object):
             }
             values.append(record)
             if len(values) > 100:
-                for row in values:
-                    self.engine.execute(insert.values(row))
+                with self.engine.begin() as conn:
+                    for row in values:
+                        conn.execute(insert.values(row))
                 del values[:]
 
-        for row in values:
-            self.engine.execute(insert.values(row))
+        with self.engine.begin() as conn:
+            for row in values:
+                conn.execute(insert.values(row))
 
     def table(self, name):
         return sa.Table(name, self.md, autoload=True)
@@ -306,10 +312,11 @@ class TinyDemoDataWarehouse(object):
 
         selection = [table.c[key_name]] + [table.c[name] for name in values]
 
-        select = sa.select(selection).order_by(table.c[key_name])
+        select = sa.select(*selection).order_by(table.c[key_name])
 
-        result = self.engine.execute(select)
-        for row in result:
+        with self.engine.begin() as conn:
+            result = conn.execute(select)
+        for row in result.mappings():
             key = row[key_name]
 
             if multi:
@@ -331,15 +338,18 @@ class TinyDemoDataWarehouse(object):
         else:
             selection = table.columns
 
-        select = sa.select(selection)
+        select = sa.select(*selection)
 
-        return self.engine.execute(select)
+        with self.engine.begin() as conn:
+            result = conn.execute(select)
+            return list(result.mappings())
 
     def insert(self, table_name, values):
         """Insert list of `values` into table `table_name`"""
         insert = self.table(table_name).insert()
-        for row in values:
-            self.engine.execute(insert, row)
+        with self.engine.begin() as conn:
+            for row in values:
+                conn.execute(insert.values(row))
 
     def dimension(self, table):
         """Returns a dimension lookup object for `table`."""
@@ -443,16 +453,16 @@ def create_demo_dw(url, schema, recreate):
         }
         ft_values.append(record)
 
-        dft_record = {
+        dft_record = record.copy()
+        dft_record.update({
             "date": row["date"],
             "item_name": item,
             "item_unit_price": dim_item[item_key]["unit_price"],
             "category_name": dim_category[category_key]["name"],
             "department_name": dim_department[dept_key]["name"],
-        }
+        })
 
-        record.update(dft_record)
-        dft_values.append(record)
+        dft_values.append(dft_record)
 
     dw.insert("fact_sales", ft_values)
     dw.insert("fact_sales_denorm", dft_values)
