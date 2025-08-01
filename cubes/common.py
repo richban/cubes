@@ -183,16 +183,12 @@ def to_identifier(name):
     return re.sub(r" ", r"_", name).lower()
 
 
-def to_label(name, capitalize=True):
-    """Converts `name` into label by replacing underscores by spaces. If
-    `capitalize` is ``True`` (default) then the first letter of the label is
-    capitalized."""
-
-    label = name.replace("_", " ")
-    if capitalize:
-        label = label.capitalize()
-
-    return label
+def to_label(name: str) -> str:
+    """Converts an identifier to a human-readable label."""
+    if not isinstance(name, str):
+        return ""
+    # Replace underscores and hyphens with spaces, then title-case
+    return name.replace("_", " ").replace("-", " ").title()
 
 
 def coalesce_option_value(value, value_type, label=None):
