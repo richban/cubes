@@ -8,7 +8,13 @@ Measure, and MeasureAggregate classes with improved validation and type safety.
 from typing import Any, Dict, List, Optional, Set, Union, ClassVar
 from enum import Enum
 
-from pydantic import Field, field_validator, model_validator, computed_field, PrivateAttr, ConfigDict
+from pydantic import (
+    Field,
+    field_validator,
+    model_validator,
+    computed_field,
+    PrivateAttr,
+)
 from pydantic.types import PositiveInt
 
 from expressions import inspect_variables
@@ -32,7 +38,6 @@ class NonAdditiveType(str, Enum):
 
 
 class AttributeBase(MetadataObject):
-
     # Class constants for ordering
     ASC: ClassVar[str] = "asc"
     DESC: ClassVar[str] = "desc"
@@ -328,14 +333,3 @@ class MeasureAggregate(AttributeBase):
             return set()
 
         return inspect_variables(self.expression)
-
-
-# Export metadata expansion utility for compatibility
-def expand_attribute_metadata(metadata: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Fixes metadata of an attribute. If metadata is a string it will be
-    converted into a dictionary with key "name" set to the string value.
-    """
-    if isinstance(metadata, str):
-        return {"name": metadata}
-    return metadata

@@ -5,7 +5,7 @@ Tests for the Pydantic-based attribute classes.
 import unittest
 from cubes.metadata_v2.attributes import (
     AttributeBase, Attribute, Measure, MeasureAggregate, 
-    OrderType, NonAdditiveType, expand_attribute_metadata
+    OrderType, NonAdditiveType
 )
 from cubes.errors import ModelError, ArgumentError, ExpressionError
 from pydantic import ValidationError
@@ -23,8 +23,6 @@ class AttributeBaseTestCase(unittest.TestCase):
         self.assertTrue(attr.is_base)
         self.assertEqual(set(), attr.dependencies)
     
-    
-
     def test_order_validation(self):
         """Test order field validation and normalization"""
         attr = AttributeBase(name="test", order="asc")
@@ -90,6 +88,33 @@ class MeasureTestCase(unittest.TestCase):
         self.assertEqual(2, len(aggs))
         self.assertEqual("amount_sum", aggs[0].name)
         self.assertEqual("amount_min", aggs[1].name)
+
+    def test_formula(self):
+        """Test that formula is stored correctly"""
+        measure = Measure(name="revenue", formula="price * quantity")
+        self.assertEqual("price * quantity", measure.formula)
+
+    def test_nonadditive(self):
+        """Test nonadditive validation"""
+        measure_time = Measure(name="inventory", nonadditive="time")
+        self.assertEqual(NonAdditiveType.TIME, measure_time.nonadditive)
+
+        measure_any = Measure(name="headcount", nonadditive="any")
+        self.assertEqual(NonAdditiveType.ANY, measure_any.nonadditive)
+
+        with self.assertRaises(ValidationError):
+            Measure(name="invalid", nonadditive="something")
+
+    def test_window_size(self):
+        """Test window_size validation"""
+        measure = Measure(name="sales_avg", window_size=7)
+        self.assertEqual(7, measure.window_size)
+
+        with self.assertRaises(ValidationError):
+            Measure(name="invalid", window_size=0)
+
+        with self.assertRaises(ValidationError):
+            Measure(name="invalid", window_size=-1)
 
 
 class MeasureAggregateTestCase(unittest.TestCase):
