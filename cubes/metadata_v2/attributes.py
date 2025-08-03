@@ -127,8 +127,6 @@ class AttributeBase(MetadataObject):
         return str(self.ref) + locale_suffix
 
 
-
-
 class Attribute(AttributeBase):
     """Dimension attribute object. Also used as fact detail."""
 
@@ -176,9 +174,7 @@ class Measure(AttributeBase):
     Cube measure attribute – a numerical attribute that can be aggregated.
     """
 
-    formula: str | None = Field(
-        None, description="Name of a formula for the measure"
-    )
+    formula: str | None = Field(None, description="Name of a formula for the measure")
     aggregates: list[str] | None = Field(
         None, description="List of default aggregate functions for this measure"
     )

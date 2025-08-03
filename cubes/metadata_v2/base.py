@@ -111,8 +111,6 @@ class MetadataObject(BaseModel):
 
         return localized_copy
 
-
-
     def __str__(self) -> str:
         """String representation using name or class name."""
         return self.name or f"<{self.__class__.__name__}>"
