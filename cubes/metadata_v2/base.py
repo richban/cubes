@@ -6,13 +6,11 @@ for validation, serialization, and type safety without backward compatibility
 concerns.
 """
 
-from collections import OrderedDict
 from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..common import to_label
-from ..errors import ArgumentError, ModelError
 
 
 class MetadataObject(BaseModel):
@@ -20,7 +18,6 @@ class MetadataObject(BaseModel):
     Modern base class for all Cubes metadata objects.
 
     Uses Pydantic for validation, serialization, and type safety.
-    Clean, modern Python without backward compatibility baggage.
     """
 
     model_config = ConfigDict(
@@ -114,31 +111,7 @@ class MetadataObject(BaseModel):
 
         return localized_copy
 
-    @classmethod
-    def from_metadata(cls, metadata, templates: dict | None = None):
-        """
-        Create instance from metadata.
 
-        Args:
-            metadata: String name or dictionary metadata
-            templates: Optional templates dictionary for subclasses
-
-        Returns:
-            New instance of the class
-
-        Raises:
-            ArgumentError: If metadata type is invalid
-            ModelError: If object creation fails
-        """
-        if isinstance(metadata, str):
-            return cls(name=metadata)
-        elif isinstance(metadata, dict):
-            try:
-                return cls(**metadata)
-            except Exception as e:
-                raise ModelError(f"Failed to create {cls.__name__}: {e}")
-        else:
-            raise ArgumentError(f"Invalid metadata type: {type(metadata)}")
 
     def __str__(self) -> str:
         """String representation using name or class name."""

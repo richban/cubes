@@ -5,19 +5,18 @@ This module provides Pydantic implementations of AttributeBase, Attribute,
 Measure, and MeasureAggregate classes with improved validation and type safety.
 """
 
-from typing import Any, Dict, List, Optional, Set, Union, ClassVar
 from enum import Enum
-
-from pydantic import (
-    Field,
-    field_validator,
-    model_validator,
-    computed_field,
-    PrivateAttr,
-)
-from pydantic.types import PositiveInt
+from typing import Any, ClassVar
 
 from expressions import inspect_variables
+from pydantic import (
+    Field,
+    PrivateAttr,
+    computed_field,
+    field_validator,
+    model_validator,
+)
+from pydantic.types import PositiveInt
 
 from ..errors import ArgumentError, ModelError
 from .base import MetadataObject
@@ -43,19 +42,19 @@ class AttributeBase(MetadataObject):
     DESC: ClassVar[str] = "desc"
 
     # Localization support
-    localizable_attributes: ClassVar[List[str]] = ["label", "description", "format"]
+    localizable_attributes: ClassVar[list[str]] = ["label", "description", "format"]
 
     # Additional fields beyond base MetadataObject
-    format: Optional[str] = Field(
+    format: str | None = Field(
         None, description="Application-specific display format information"
     )
-    order: Optional[OrderType] = Field(
+    order: OrderType | None = Field(
         None, description="Default ordering: 'asc' or 'desc'"
     )
-    missing_value: Optional[Union[str, int, float, bool]] = Field(
+    missing_value: str | int | float | bool | None = Field(
         None, description="Value to use when data source has NULL"
     )
-    expression: Optional[str] = Field(
+    expression: str | None = Field(
         None, description="Arithmetic expression for computing this attribute"
     )
 
@@ -89,7 +88,7 @@ class AttributeBase(MetadataObject):
 
     @computed_field
     @property
-    def dependencies(self) -> Set[str]:
+    def dependencies(self) -> set[str]:
         """Set of attributes this attribute depends on through expressions"""
         if not self.expression:
             return set()
@@ -107,7 +106,7 @@ class AttributeBase(MetadataObject):
         """Check if attribute supports localization - base implementation"""
         return False
 
-    def localized_ref(self, locale: Optional[str]) -> str:
+    def localized_ref(self, locale: str | None) -> str:
         """Returns localized attribute reference for locale"""
         if locale:
             if not hasattr(self, "locales") or not self.locales:
@@ -127,35 +126,15 @@ class AttributeBase(MetadataObject):
 
         return str(self.ref) + locale_suffix
 
-    @classmethod
-    def from_metadata(
-        cls,
-        metadata: Union[str, Dict[str, Any], "AttributeBase"],
-        templates: Optional[Dict] = None,
-    ):
-        """Create instance from metadata with enhanced validation"""
-        if isinstance(metadata, str):
-            return cls(name=metadata)
-        elif isinstance(metadata, cls):
-            return metadata.model_copy()
-        elif isinstance(metadata, dict):
-            if "name" not in metadata:
-                raise ModelError(
-                    "Model objects metadata require at least name to be present."
-                )
-            return cls(**metadata)
-        else:
-            raise ArgumentError(
-                f"Invalid metadata type for {cls.__name__}: {type(metadata)}"
-            )
+
 
 
 class Attribute(AttributeBase):
     """Dimension attribute object. Also used as fact detail."""
 
-    _dimension: Optional[Any] = PrivateAttr(default=None)
+    _dimension: Any | None = PrivateAttr(default=None)
 
-    locales: List[str] = Field(
+    locales: list[str] = Field(
         default_factory=list, description="List of supported locales for this attribute"
     )
 
@@ -197,16 +176,16 @@ class Measure(AttributeBase):
     Cube measure attribute – a numerical attribute that can be aggregated.
     """
 
-    formula: Optional[str] = Field(
+    formula: str | None = Field(
         None, description="Name of a formula for the measure"
     )
-    aggregates: Optional[List[str]] = Field(
+    aggregates: list[str] | None = Field(
         None, description="List of default aggregate functions for this measure"
     )
-    nonadditive: Optional[NonAdditiveType] = Field(
+    nonadditive: NonAdditiveType | None = Field(
         None, description="Non-additivity type: 'time', 'any', or None"
     )
-    window_size: Optional[PositiveInt] = Field(
+    window_size: PositiveInt | None = Field(
         None, description="Window size for windowed aggregations"
     )
 
@@ -233,7 +212,7 @@ class Measure(AttributeBase):
         else:
             raise ValueError(f"Unknown non-additive measure type '{v}'")
 
-    def default_aggregates(self) -> List["MeasureAggregate"]:
+    def default_aggregates(self) -> list["MeasureAggregate"]:
         """
         Creates default measure aggregates from this measure's aggregate list.
         If no aggregates are specified, defaults to 'sum'.
@@ -274,19 +253,19 @@ class MeasureAggregate(AttributeBase):
     Measure aggregate - represents an aggregated measure value.
     """
 
-    function: Optional[str] = Field(
+    function: str | None = Field(
         None, description="Aggregation function name (sum, avg, min, max, count, etc.)"
     )
-    formula: Optional[str] = Field(
+    formula: str | None = Field(
         None, description="Name of a formula containing arithmetic expression"
     )
-    measure: Optional[str] = Field(
+    measure: str | None = Field(
         None, description="Source measure name for this aggregate"
     )
-    nonadditive: Optional[NonAdditiveType] = Field(
+    nonadditive: NonAdditiveType | None = Field(
         None, description="Non-additivity behavior inherited from measure"
     )
-    window_size: Optional[PositiveInt] = Field(
+    window_size: PositiveInt | None = Field(
         None, description="Window size for windowed aggregations"
     )
 
@@ -320,7 +299,7 @@ class MeasureAggregate(AttributeBase):
 
     @computed_field
     @property
-    def dependencies(self) -> Set[str]:
+    def dependencies(self) -> set[str]:
         """Set of attributes this aggregate depends on"""
         if self.measure:
             if self.expression:

@@ -4,6 +4,8 @@ Tests for the Pydantic-based base metadata classes.
 
 import unittest
 from cubes.metadata_v2.base import MetadataObject
+from pydantic import ValidationError
+
 from cubes.errors import ModelError, ArgumentError
 
 
@@ -95,7 +97,7 @@ class MetadataObjectTestCase(unittest.TestCase):
     
     def test_from_metadata_string(self):
         """Test creating object from string metadata"""
-        obj = MockModelObject.from_metadata("test_name")
+        obj = MockModelObject(name="test_name")
         self.assertEqual("test_name", obj.name)
         self.assertIsNone(obj.label)
         self.assertEqual({}, obj.info)
@@ -109,7 +111,7 @@ class MetadataObjectTestCase(unittest.TestCase):
             "info": {"key": "value"}
         }
         
-        obj = MockModelObject.from_metadata(metadata)
+        obj = MockModelObject(**metadata)
         self.assertEqual("test", obj.name)
         self.assertEqual("Test Label", obj.label)
         self.assertEqual("Test description", obj.description)
@@ -117,8 +119,8 @@ class MetadataObjectTestCase(unittest.TestCase):
     
     def test_from_metadata_invalid(self):
         """Test error handling for invalid metadata"""
-        with self.assertRaises(ArgumentError):
-            MockModelObject.from_metadata(123)  # Invalid type
+        with self.assertRaises(ValidationError):
+            MockModelObject(name=123)  # Invalid type
     
     def test_str_and_repr(self):
         """Test string representations"""
