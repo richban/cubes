@@ -18,7 +18,7 @@ from pydantic import (
 )
 from pydantic.types import PositiveInt
 
-from ..errors import ArgumentError, ModelError
+from ..errors import ModelError
 from .base import MetadataObject
 
 
@@ -40,9 +40,6 @@ class AttributeBase(MetadataObject):
     # Class constants for ordering
     ASC: ClassVar[str] = "asc"
     DESC: ClassVar[str] = "desc"
-
-    # Localization support
-    localizable_attributes: ClassVar[list[str]] = ["label", "description", "format"]
 
     # Additional fields beyond base MetadataObject
     format: str | None = Field(
@@ -102,29 +99,7 @@ class AttributeBase(MetadataObject):
         """Hash based on ref"""
         return hash(self.ref)
 
-    def is_localizable(self) -> bool:
-        """Check if attribute supports localization - base implementation"""
-        return False
 
-    def localized_ref(self, locale: str | None) -> str:
-        """Returns localized attribute reference for locale"""
-        if locale:
-            if not hasattr(self, "locales") or not self.locales:
-                raise ArgumentError(
-                    f"Attribute '{self.name}' is not localizable "
-                    f"(localization {locale} requested)"
-                )
-            elif locale not in self.locales:
-                raise ArgumentError(
-                    f"Attribute '{self.name}' has no localization {locale} "
-                    f"(has: {self.locales})"
-                )
-            else:
-                locale_suffix = "." + locale
-        else:
-            locale_suffix = ""
-
-        return str(self.ref) + locale_suffix
 
 
 class Attribute(AttributeBase):
@@ -132,19 +107,6 @@ class Attribute(AttributeBase):
 
     _dimension: Any | None = PrivateAttr(default=None)
 
-    locales: list[str] = Field(
-        default_factory=list, description="List of supported locales for this attribute"
-    )
-
-    @field_validator("locales", mode="before")
-    @classmethod
-    def validate_locales(cls, v):
-        """Ensure locales is a list"""
-        if v is None:
-            return []
-        if isinstance(v, str):
-            return [v]
-        return list(v) if v else []
 
     @computed_field
     @property
@@ -164,9 +126,6 @@ class Attribute(AttributeBase):
         """Set the parent dimension and update ref accordingly"""
         self._dimension = dimension
 
-    def is_localizable(self) -> bool:
-        """Check if attribute supports localization"""
-        return bool(self.locales)
 
 
 class Measure(AttributeBase):

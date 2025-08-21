@@ -6,7 +6,7 @@ for validation, serialization, and type safety without backward compatibility
 concerns.
 """
 
-from typing import Any, ClassVar
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -43,10 +43,6 @@ class MetadataObject(BaseModel):
         default_factory=dict, description="Additional metadata"
     )
 
-    # Localization support for subclasses
-    localizable_attributes: ClassVar[list[str]] = ["label", "description"]
-    localizable_lists: ClassVar[list[str]] = []
-
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str | None) -> str | None:
@@ -72,44 +68,6 @@ class MetadataObject(BaseModel):
         if self.name:
             return to_label(self.name)
         return f"<{self.__class__.__name__}>"
-
-    def localized(self, context) -> "MetadataObject":
-        """
-        Returns a localized copy of the object.
-
-        Args:
-            context: Localization context with translation data
-
-        Returns:
-            Localized copy of the object
-        """
-        # Create a deep copy
-        localized_copy = self.model_copy(deep=True)
-
-        # Apply localizable attributes
-        for attr in self.localizable_attributes:
-            if hasattr(context, "get"):
-                localized_value = context.get(attr, getattr(self, attr))
-                setattr(localized_copy, attr, localized_value)
-
-        # Apply localizable lists
-        for attr in self.localizable_lists:
-            if hasattr(localized_copy, attr):
-                current_list = getattr(localized_copy, attr, [])
-                localized_list = []
-
-                for obj in current_list:
-                    if hasattr(context, "object_localization") and hasattr(
-                        obj, "localized"
-                    ):
-                        obj_context = context.object_localization(attr, obj.name)
-                        localized_list.append(obj.localized(obj_context))
-                    else:
-                        localized_list.append(obj)
-
-                setattr(localized_copy, attr, localized_list)
-
-        return localized_copy
 
     def __str__(self) -> str:
         """String representation using name or class name."""
