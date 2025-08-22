@@ -1,4 +1,3 @@
-
 """
 Modern browser implementation using type-safe Python patterns and Pydantic validation.
 Maintains 100% API compatibility with legacy browser.py while adding significant improvements
@@ -12,8 +11,9 @@ from collections import namedtuple
 from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+from cubes.metadata_v2 import Cube, Dimension, Level, MeasureAggregate
 from cubes.query.statutils import available_calculators, calculators_for_aggregates
 
 from ..calendar import CalendarMemberConverter
@@ -21,15 +21,8 @@ from ..common import IgnoringDictionary
 from ..errors import ArgumentError, HierarchyError, NoSuchAttributeError
 from ..logging import get_logger
 from ..metadata import string_to_dimension_level
-from .cells import Cell, PointCut, RangeCut, SetCut, cuts_from_string
-
-if TYPE_CHECKING:
-    from ..metadata import Dimension, Level, MeasureAggregate
-else:
-    # Runtime imports for when type checking is not active
-    from ..metadata import Dimension, Level, MeasureAggregate
-
-from .. import compat
+from .cells import Cell, PointCut, RangeCut, SetCut
+from .report_models import QuerySpec, ReportRequest, ReportResult
 
 # API compatibility exports - maintain exact same interface
 __all__ = [
@@ -73,6 +66,185 @@ class DrilldownSpec:
         if self.level:
             parts.append(f":{self.level}")
         return "".join(parts)
+
+    @classmethod
+    def from_string(cls, spec_string: str) -> DrilldownSpec:
+        """
+        Parse drilldown specification from string format.
+
+        Supports formats:
+        - 'dimension' -> DrilldownSpec(dimension='dimension')
+        - 'dimension@hierarchy' -> DrilldownSpec(dimension='dimension', hierarchy='hierarchy')
+        - 'dimension:level' -> DrilldownSpec(dimension='dimension', level='level')
+        - 'dimension@hierarchy:level' -> Full specification
+
+        Args:
+            spec_string: String in format 'dimension[@hierarchy][:level]'
+
+        Returns:
+            DrilldownSpec instance
+
+        Raises:
+            ArgumentError: If string format is invalid
+        """
+        if not spec_string:
+            raise ArgumentError("Drilldown specification cannot be empty")
+
+        # Split by colon for level
+        if ":" in spec_string:
+            dim_hier_part, level = spec_string.rsplit(":", 1)
+        else:
+            dim_hier_part, level = spec_string, None
+
+        # Split by @ for hierarchy
+        if "@" in dim_hier_part:
+            dimension, hierarchy = dim_hier_part.split("@", 1)
+        else:
+            dimension, hierarchy = dim_hier_part, None
+
+        if not dimension:
+            raise ArgumentError(f"Invalid drilldown specification: '{spec_string}'")
+
+        return cls(dimension=dimension, hierarchy=hierarchy, level=level)
+
+    @classmethod
+    def from_tuple(
+        cls, spec_tuple: tuple[str, str | None, str | None]
+    ) -> DrilldownSpec:
+        """
+        Create DrilldownSpec from tuple format.
+
+        Args:
+            spec_tuple: Tuple of (dimension, hierarchy, level)
+
+        Returns:
+            DrilldownSpec instance
+
+        Raises:
+            ArgumentError: If tuple format is invalid
+        """
+        if not isinstance(spec_tuple, tuple) or len(spec_tuple) != 3:
+            raise ArgumentError(
+                "Tuple must have exactly 3 elements: (dimension, hierarchy, level)"
+            )
+
+        dimension, hierarchy, level = spec_tuple
+
+        if not dimension:
+            raise ArgumentError("Dimension cannot be empty")
+
+        return cls(dimension=dimension, hierarchy=hierarchy, level=level)
+
+    @classmethod
+    def from_legacy(cls, legacy_spec: Any) -> DrilldownSpec:
+        """
+        Unified conversion method from various legacy formats.
+
+        Supports:
+        - String: 'dimension[@hierarchy][:level]'
+        - Tuple: (dimension, hierarchy, level)
+        - DrilldownItem: Legacy namedtuple
+        - Dimension: Dimension object (uses default hierarchy and last level)
+
+        Args:
+            legacy_spec: Legacy drilldown specification in various formats
+
+        Returns:
+            DrilldownSpec instance
+
+        Raises:
+            ArgumentError: If format is not supported or invalid
+        """
+        if isinstance(legacy_spec, DrilldownSpec):
+            return legacy_spec
+
+        elif isinstance(legacy_spec, str):
+            return cls.from_string(legacy_spec)
+
+        elif isinstance(legacy_spec, tuple):
+            if len(legacy_spec) == 3:
+                return cls.from_tuple(legacy_spec)
+            else:
+                raise ArgumentError(f"Unsupported tuple length: {len(legacy_spec)}")
+
+        elif hasattr(legacy_spec, "dimension") and hasattr(legacy_spec, "hierarchy"):
+            # DrilldownItem or similar
+            dimension = str(legacy_spec.dimension)
+            hierarchy = str(legacy_spec.hierarchy) if legacy_spec.hierarchy else None
+            level = None
+
+            # Try to extract level if available
+            if hasattr(legacy_spec, "levels") and legacy_spec.levels:
+                level = str(legacy_spec.levels[-1])  # Use deepest level
+
+            return cls(dimension=dimension, hierarchy=hierarchy, level=level)
+
+        elif hasattr(legacy_spec, "name"):
+            # Dimension object
+            dimension = str(legacy_spec.name)
+            # Use default hierarchy's last level
+            hierarchy = None
+            level = None
+
+            if hasattr(legacy_spec, "hierarchy") and callable(legacy_spec.hierarchy):
+                default_hier = legacy_spec.hierarchy()
+                if hasattr(default_hier, "levels") and default_hier.levels:
+                    level = str(default_hier.levels[-1])
+
+            return cls(dimension=dimension, hierarchy=hierarchy, level=level)
+
+        else:
+            raise ArgumentError(
+                f"Unsupported drilldown specification type: {type(legacy_spec)}"
+            )
+
+    def validate_against_cube(self, cube) -> tuple[Dimension, Level | None]:
+        """
+        Validate this specification against a cube's metadata.
+
+        Args:
+            cube: Cube instance to validate against
+
+        Returns:
+            Tuple of (dimension, level) objects from cube metadata
+
+        Raises:
+            ValidationError: If dimension/hierarchy/level doesn't exist
+        """
+        try:
+            dimension = cube.dimension(self.dimension)
+        except Exception as e:
+            raise ValidationError(
+                f"Unknown dimension '{self.dimension}'",
+                field="dimension",
+                value=self.dimension,
+                cause=e,
+            ) from e
+
+        try:
+            hierarchy = dimension.hierarchy(self.hierarchy)
+        except Exception as e:
+            raise ValidationError(
+                f"Unknown hierarchy '{self.hierarchy}' in dimension '{self.dimension}'",
+                field="hierarchy",
+                value=self.hierarchy,
+                cause=e,
+            ) from e
+
+        level = None
+        if self.level:
+            try:
+                level = hierarchy.level(self.level)
+            except Exception as e:
+                raise ValidationError(
+                    f"Unknown level '{self.level}' in hierarchy '{hierarchy.name}' "
+                    f"of dimension '{self.dimension}'",
+                    field="level",
+                    value=self.level,
+                    cause=e,
+                ) from e
+
+        return dimension, level
 
 
 # Enhanced exception hierarchy with proper context
@@ -260,7 +432,7 @@ class AggregationBrowser:
     __extension_suffix__ = "Browser"
     builtin_functions = []
 
-    def __init__(self, cube, store=None, locale: str | None = None, **options):
+    def __init__(self, cube: Cube, store=None, **options):
         """Creates and initializes the aggregation browser with enhanced validation."""
         super().__init__()
 
@@ -290,64 +462,57 @@ class AggregationBrowser:
 
     def aggregate(
         self,
-        cell=None,
-        aggregates=None,
-        drilldown=None,
-        split=None,
-        order=None,
-        page=None,
-        page_size=None,
+        cell: Cell | None = None,
+        aggregates: list[str] | None = None,
+        drilldown: Any | None = None,
+        split: Cell | None = None,
+        order: list[str | tuple] | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
         **options,
     ) -> AggregationResult:
         """
         Enhanced aggregate method with improved type safety and validation.
-        Maintains exact API compatibility while adding internal improvements.
-        """
-        # Enhanced parameter validation with better error messages
-        if "measures" in options:
-            raise ArgumentError(
-                "Parameter 'measures' in aggregate is deprecated. Use 'aggregates' instead."
-            )
 
+        Args:
+            cell: Cell object defining the slice of data to aggregate
+            aggregates: List of aggregate measure names to compute
+            drilldown: Dimensions to drill down through
+            split: Split cell for comparative analysis
+            order: Ordering specification for results
+            page: Page number for pagination
+            page_size: Number of records per page
+            **options: Additional aggregation options
+
+        Returns:
+            AggregationResult with computed aggregates
+        """
         try:
-            # Modern parameter preparation with enhanced validation
-            validated_aggregates = self._prepare_aggregates_modern(aggregates)
-            validated_order = self._prepare_order_modern(order, is_aggregate=True)
+            # Parameter preparation with enhanced validation
+            validated_aggregates = self._prepare_aggregates(aggregates)
+            validated_order = self._prepare_order(order, is_aggregate=True)
 
             # Enhanced cell preparation with better type handling
             converters = {"time": CalendarMemberConverter(self.calendar)}
 
             if cell is None:
-                validated_cell = Cell(self.cube)
-            elif isinstance(cell, compat.string_type):
-                cuts = cuts_from_string(
-                    self.cube, cell, role_member_converters=converters
-                )
-                validated_cell = Cell(self.cube, cuts)
+                validated_cell = Cell(cube=self.cube)
             else:
                 validated_cell = cell
 
             # Enhanced split preparation
-            if isinstance(split, compat.string_type):
-                cuts = cuts_from_string(
-                    self.cube, split, role_member_converters=converters
-                )
-                validated_split = Cell(self.cube, cuts)
-            else:
-                validated_split = split
+            validated_split = split
 
-            # Modern drilldown preparation
-            validated_drilldown = self._prepare_drilldown_modern(
-                drilldown, validated_cell
-            )
+            # Drilldown preparation
+            validated_drilldown = self._prepare_drilldown(drilldown, validated_cell)
 
         except Exception as e:
             # Proper exception chaining with context
             raise ArgumentError(f"Invalid aggregation parameters: {e}") from e
 
         # Delegate to implementation with enhanced validation
-        result = self.provide_aggregate(
-            validated_cell,
+        result: AggregationResult = self.provide_aggregate(
+            cell=validated_cell,
             aggregates=validated_aggregates,
             drilldown=validated_drilldown,
             split=validated_split,
@@ -359,15 +524,25 @@ class AggregationBrowser:
 
         # Enhanced post-processing with type safety
         self._enhance_result_with_calculations(
-            result, validated_aggregates, validated_drilldown, validated_split
+            result=result,
+            aggregates=validated_aggregates,
+            drilldown=validated_drilldown,
+            split=validated_split,
         )
 
         return result
 
-    def _prepare_aggregates_modern(
-        self, aggregates: list[str] | None
+    def _prepare_aggregates(
+        self, aggregates: list[str | MeasureAggregate] | None
     ) -> list[MeasureAggregate]:
-        """Modern aggregate preparation with enhanced validation."""
+        """Aggregate preparation with enhanced validation.
+
+        This implements a sophisticated dependency resolution system for calculated
+        measures in OLAP. When you request a ratio like "profit_margin" (which might
+        be defined as revenue/costs), the system automatically includes the underlying
+        "revenue" and "costs" aggregates needed for the calculation, even if
+        you didn't explicitly request them.
+        """
         if not aggregates:
             return list(self.cube.aggregates)
 
@@ -380,7 +555,6 @@ class AggregationBrowser:
                 if isinstance(agg, str):
                     aggregate_obj = self._metadata_cache.get_aggregate(agg)
                 else:
-                    # Assume it's already a MeasureAggregate object
                     aggregate_obj = agg
                 validated_aggregates.append(aggregate_obj)
                 seen.add(aggregate_obj.name)
@@ -392,8 +566,10 @@ class AggregationBrowser:
         # Enhanced dependency resolution for non-builtin functions
         for agg in validated_aggregates:
             if (
-                agg.measure
-                and not self.is_builtin_function(agg.function)
+                agg.measure  #  Checks if the aggregate references an underlying measure
+                and not self.is_builtin_function(
+                    agg.function
+                )  #  Only for custom/calculated functions (not SQL built-ins like SUM, COUNT)
                 and agg.measure not in seen
             ):
                 seen.add(agg.measure)
@@ -409,16 +585,33 @@ class AggregationBrowser:
         validated_aggregates += dependencies
         return validated_aggregates
 
-    def _prepare_order_modern(
+    def _prepare_order(
         self, order: list[str | tuple] | None, is_aggregate: bool = False
     ) -> list[tuple]:
-        """Enhanced order preparation with type safety."""
+        """Enhanced order preparation with type safety.
+
+         Problem: You can't directly order by profit_margin = revenue/costs in SQL
+           because the calculation happens after aggregation.
+
+         Solution: Order by the underlying base measure (revenue) instead,
+         which exists in the aggregated SQL results.
+
+           Example scenarios:
+
+        Input: [("revenue", "desc"), ("profit_margin", "asc")]
+
+        Output: [
+          (revenue_aggregate, "desc"),      # Direct SQL ordering
+          (revenue_aggregate, "asc")        # Underlying measure for profit_margin
+        ]
+        """
+
         if not order:
             return []
 
         validated_order = []
         for item in order:
-            if isinstance(item, compat.string_type):
+            if isinstance(item, str):
                 name = item
                 direction = None
             else:
@@ -428,8 +621,8 @@ class AggregationBrowser:
             if is_aggregate:
                 function = None
                 try:
-                    attribute = self._metadata_cache.get_aggregate(name)
-                    function = attribute.function
+                    measure: MeasureAggregate = self._metadata_cache.get_aggregate(name)
+                    function = measure.function
                 except Exception:
                     try:
                         attribute = self.cube.attribute(name)
@@ -457,14 +650,18 @@ class AggregationBrowser:
 
         return validated_order
 
-    def _prepare_drilldown_modern(self, drilldown: Any, cell: Cell) -> Drilldown:
-        """Enhanced drilldown preparation with modern validation."""
+    def _prepare_drilldown(self, drilldown: Any, cell: Cell) -> Drilldown:
+        """Enhanced drilldown preparation with validation."""
         return Drilldown(drilldown, cell)
 
     def _enhance_result_with_calculations(
         self, result: AggregationResult, aggregates: list, drilldown: Drilldown, split
     ) -> None:
-        """Enhanced result processing with calculated measures."""
+        """Enhanced result processing with calculated measures.
+
+        This method processes aggregation results to add calculated measures -
+        metrics that require custom computation beyond basic SQL aggregation functions.
+        """
         # Find post-aggregation calculations
         calculated_aggs = [
             agg
@@ -491,16 +688,16 @@ class AggregationBrowser:
         """Cached level lookup with validation."""
         return self._metadata_cache.get_level(dimension_name, level_name)
 
+    @abstracmethod
     def provide_aggregate(
         self,
-        cell=None,
-        measures=None,
-        aggregates=None,
-        drilldown=None,
-        split=None,
-        order=None,
-        page=None,
-        page_size=None,
+        cell: Cell | None = None,
+        aggregates: list[str] | None = None,
+        drilldown: Any | None = None,
+        split: Cell | None = None,
+        order: list[str | tuple] | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
         **options,
     ) -> AggregationResult:
         """
@@ -515,17 +712,17 @@ class AggregationBrowser:
         self, aggregates=None, measures=None
     ) -> list[MeasureAggregate]:
         """
-        API compatibility method - delegates to modern implementation.
+        API compatibility method - delegates to enhanced implementation.
         Maintains exact legacy behavior while using enhanced internals.
         """
-        return self._prepare_aggregates_modern(aggregates)
+        return self._prepare_aggregates(aggregates)
 
     def prepare_order(self, order, is_aggregate=False) -> list[tuple]:
         """
-        API compatibility method - delegates to modern implementation.
+        API compatibility method - delegates to enhanced implementation.
         Maintains exact legacy behavior.
         """
-        return self._prepare_order_modern(order, is_aggregate)
+        return self._prepare_order(order, is_aggregate)
 
     def assert_low_cardinality(self, cell: Cell, drilldown: Drilldown) -> None:
         """
@@ -565,20 +762,36 @@ class AggregationBrowser:
 
     def members(
         self,
-        cell,
-        dimension,
+        cell: Cell,
+        dimension: Dimension,
         depth=None,
         level=None,
         hierarchy=None,
         attributes=None,
-        page=None,
-        page_size=None,
-        order=None,
+        page: int | None = None,
+        page_size: int | None = None,
+        order: list[str | tuple] | None = None,
         **options,
     ):
         """
-        Enhanced members method with improved validation and type safety.
-        Maintains API compatibility.
+
+        Retrieves the available members (values) within a dimension at a specific level of granularity, supporting
+        hierarchical navigation and filtering.
+
+        - cell: Cell - Current data slice/filter context
+        - dimension: Dimension - Which dimension to explore (e.g., "geography", "time", "product")
+
+        Granularity Control:
+
+        - depth - How deep in hierarchy (1=country, 2=state, 3=city)
+        - level - Specific level name ("country", "state", "city")
+        - hierarchy - Which hierarchy to use (default vs. alternative views)
+
+        Result Control:
+
+        - attributes - Which fields to return (key, label, description, etc.)
+        - page/page_size - Pagination for large dimension tables
+        - order - Sorting specification
         """
         order = self.prepare_order(order, is_aggregate=False)
 
@@ -634,72 +847,102 @@ class AggregationBrowser:
         """
         raise NotImplementedError(f"{type(self)} does not provide test functionality.")
 
-    def report(self, cell: Cell, queries: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    def report(
+        self,
+        cell: Cell,
+        request: ReportRequest,
+        fail_fast: bool = True,
+    ) -> ReportResult:
         """
-        Enhanced report method with improved error handling and type safety.
-        Maintains exact API compatibility.
+        Enhanced report method with Pydantic validation and comprehensive error handling.
+
+        Args:
+            cell: Cell object defining the data slice
+            request: Type-safe ReportRequest or legacy dict format
+            fail_fast: If True, stop on first error. If False, collect all errors.
+
+        Returns:
+            ReportResult with structured results and error information
+
+        Raises:
+            ArgumentError: If Pydantic is not available or validation fails in fail_fast mode
         """
-        report_result = {}
+        results = {}
+        errors = {}
+        metadata = {
+            "query_count": len(request.queries),
+            "execution_start": None,  # Could add timing metadata
+            "fail_fast": fail_fast,
+        }
 
-        for result_name, query in list(queries.items()):
-            query_type = query.get("query")
-            if not query_type:
-                raise ArgumentError(f"No report query for '{result_name}'")
-
-            args = dict(query)
-            del args["query"]
-
-            # Enhanced rollup handling
-            rollup = query.get("rollup")
-            if rollup:
-                query_cell = cell.rollup(rollup)
-            else:
-                query_cell = cell
-
+        for result_name, query_spec in request.queries.items():
             try:
-                if query_type == "aggregate":
-                    result = self.aggregate(query_cell, **args)
-
-                elif query_type == "facts":
-                    result = self.facts(query_cell, **args)
-
-                elif query_type == "fact":
-                    # Enhanced key handling
-                    key = args.get("key") or args.get("id")
-                    if not key:
-                        raise ArgumentError(
-                            f"No key provided for fact query in '{result_name}'"
-                        )
-                    result = self.fact(key)
-
-                elif query_type in ("values", "members"):
-                    result = self.members(query_cell, **args)
-
-                elif query_type == "details":
-                    result = self.cell_details(query_cell, **args)
-
-                elif query_type == "cell":
-                    details = self.cell_details(query_cell, **args)
-                    cell_dict = query_cell.to_dict()
-
-                    for cut, detail in zip(cell_dict["cuts"], details, strict=False):
-                        cut["details"] = detail
-
-                    result = cell_dict
-                else:
-                    raise ArgumentError(
-                        f"Unknown report query '{query_type}' for '{result_name}'"
-                    )
-
-                report_result[result_name] = result
+                result = self._execute_query(cell, query_spec)
+                results[result_name] = result
 
             except Exception as e:
-                # Enhanced error handling with context
-                raise ArgumentError(
-                    f"Error processing query '{result_name}' of type '{query_type}': {e}"
-                ) from e
+                error_msg = f"Error executing {query_spec.query} query: {e}"
+                errors[result_name] = error_msg
 
-        return report_result
+                if fail_fast:
+                    raise ArgumentError(
+                        f"Query '{result_name}' failed: {error_msg}"
+                    ) from e
+
+        return ReportResult(results=results, errors=errors, metadata=metadata)
+
+    def _execute_query(self, cell: Cell, query_spec: QuerySpec) -> Any:
+        """
+        Execute a single validated query specification.
+
+        Args:
+            cell: Base cell for the query
+            query_spec: Validated Pydantic query specification
+
+        Returns:
+            Query result (type depends on query type)
+        """
+        # Handle rollup if specified
+        if query_spec.rollup:
+            query_cell = cell.rollup(query_spec.rollup)
+        else:
+            query_cell = cell
+
+        # Extract query data and remove the 'query' field
+        query_data = query_spec.dict()
+        query_type = query_data.pop("query")
+
+        # Remove None values and rollup from args
+        args = {k: v for k, v in query_data.items() if v is not None and k != "rollup"}
+
+        # Execute based on query type
+        if query_type == "aggregate":
+            return self.aggregate(query_cell, **args)
+
+        elif query_type == "facts":
+            return self.facts(query_cell, **args)
+
+        elif query_type == "fact":
+            return self.fact(args["key"])
+
+        elif query_type in ("members", "values"):
+            return self.members(query_cell, **args)
+
+        elif query_type == "details":
+            return self.cell_details(query_cell, **args)
+
+        elif query_type == "cell":
+            details = self.cell_details(query_cell, **args)
+            cell_dict = query_cell.to_dict()
+
+            # Enhance cell dict with details
+            for cut, detail in zip(cell_dict["cuts"], details, strict=False):
+                cut["details"] = detail
+
+            return cell_dict
+
+        else:
+            raise ArgumentError(f"Unknown query type: {query_type}")
 
     def cell_details(
         self, cell: Cell | None = None, dimension: str | Dimension | None = None
@@ -752,8 +995,35 @@ class AggregationBrowser:
         self, dimension: Dimension, path: list[str], hierarchy: str | None = None
     ):
         """
-        Enhanced path details with improved error handling.
-        Maintains API compatibility.
+            Convert dimension navigation paths (like ["US", "CA", "LA"]) into structured attribute data with keys, labels, and metadata for each level in the hierarchy.
+
+        # Input path: ["US", "CA", "LA"]
+        # Geography dimension: Country → State → City
+
+        # Output structure:
+        [
+            {  # Country level
+                "country_code": "US",
+                "country_name": "United States",
+                "_key": "US",
+                "_label": "United States"
+            },
+            {  # State level
+                "state_code": "CA",
+                "state_name": "California",
+                "country_code": "US",  # Parent context
+                "_key": "CA",
+                "_label": "California"
+            },
+            {  # City level
+                "city_code": "LA",
+                "city_name": "Los Angeles",
+                "state_code": "CA",     # Parent context
+                "country_code": "US",   # Grandparent context
+                "_key": "LA",
+                "_label": "Los Angeles"
+            }
+        ]
         """
         try:
             hierarchy = dimension.hierarchy(hierarchy)
@@ -1036,15 +1306,61 @@ class AggregationResult:
 
 # Enhanced Drilldown class with modern features
 class Drilldown:
-    """
-    Enhanced drilldown with improved validation and performance.
-    Maintains API compatibility.
+    """Multidimensional drill-down specification for OLAP queries.
+
+    The Drilldown class manages how aggregated data should be broken down across
+    multiple dimensions and hierarchy levels. It transforms user specifications
+    into validated dimensional breakdowns that can be executed by query engines.
+
+    This class acts as the "navigation engine" for OLAP analysis, enabling users
+    to explore data cubes by drilling down through hierarchical dimensions like
+    time (year → quarter → month) or geography (country → state → city).
+
+    Example:
+        Basic drilldown by single dimension:
+        >>> drilldown = Drilldown(["time:year"], cell)
+        >>> print(drilldown)  # "time:year"
+
+        Multi-dimensional drilldown:
+        >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
+        >>> print(drilldown)  # "time:year,geography:country"
+
+        Hierarchical drilldown with specific hierarchy:
+        >>> drilldown = Drilldown(["time@fiscal:quarter"], cell)
+        >>> print(drilldown)  # "time@fiscal:quarter"
+
+    Attributes:
+        drilldown (list[DrilldownItem]): Validated drilldown items
+        dimensions (list[Dimension]): Dimension objects for each drilldown
+        _contained_dimensions (set[str]): Cached dimension names for fast lookup
     """
 
     def __init__(self, drilldown=None, cell=None):
-        """
-        Enhanced drilldown creation with improved validation.
-        Maintains API compatibility.
+        """Initialize drilldown with validation and processing.
+
+        Args:
+            drilldown (list | dict | None): Drilldown specification in various formats:
+                - List of strings: ["time:year", "geography:country"]
+                - List of tuples: [("time", None, "year"), ("geography", None, "country")]
+                - List of DrilldownItems: [DrilldownItem(...), ...]
+                - Dict (deprecated): {"time": "year", "geography": "country"}
+                - None: Empty drilldown (no breakdown)
+            cell (Cell): Cell context for validation and implicit level detection
+
+        Example:
+            String format drilldown:
+            >>> cell = Cell(cube)
+            >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
+
+            Tuple format drilldown:
+            >>> drilldown = Drilldown([
+            ...     ("time", "fiscal", "quarter"),
+            ...     ("geography", None, "country")
+            ... ], cell)
+
+        Raises:
+            ArgumentError: If drilldown specification is invalid
+            HierarchyError: If hierarchy/level combinations are incompatible
         """
         self.drilldown = levels_from_drilldown(cell, drilldown)
         self.dimensions = []
@@ -1055,13 +1371,36 @@ class Drilldown:
             self._contained_dimensions.add(dd.dimension.name)
 
     def __str__(self) -> str:
-        """Enhanced string representation."""
+        """Return comma-separated string representation of drilldown.
+
+        Returns:
+            str: Drilldown items joined by commas (e.g., "time:year,geography:country")
+
+        Example:
+            >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
+            >>> str(drilldown)
+            'time:year,geography:country'
+        """
         return ",".join(self.items_as_strings())
 
     def items_as_strings(self) -> list[str]:
-        """
-        Enhanced string representation with better formatting.
-        Maintains API compatibility.
+        """Convert drilldown items to string representations.
+
+        Returns:
+            list[str]: List of drilldown item strings with hierarchy notation
+
+        Example:
+            >>> drilldown = Drilldown([
+            ...     ("time", "fiscal", "quarter"),
+            ...     ("geography", None, "country")
+            ... ], cell)
+            >>> drilldown.items_as_strings()
+            ['time@fiscal:quarter', 'geography:country']
+
+        Note:
+            - Default hierarchy omits @hierarchy part: "time:year"
+            - Custom hierarchy includes @hierarchy: "time@fiscal:quarter"
+            - Fallback to dimension name only for malformed items
         """
         strings = []
 
@@ -1081,9 +1420,22 @@ class Drilldown:
         return strings
 
     def drilldown_for_dimension(self, dim):
-        """
-        Enhanced dimension filtering with type safety.
-        Maintains API compatibility.
+        """Get all drilldown items for a specific dimension.
+
+        Args:
+            dim (str | Dimension): Dimension name or object to filter by
+
+        Returns:
+            list[DrilldownItem]: Drilldown items for the specified dimension
+
+        Example:
+            >>> drilldown = Drilldown(["time:year", "time:quarter", "geography:country"], cell)
+            >>> time_items = drilldown.drilldown_for_dimension("time")
+            >>> len(time_items)  # 2 (year and quarter)
+            2
+            >>> geo_items = drilldown.drilldown_for_dimension("geography")
+            >>> len(geo_items)  # 1 (country)
+            1
         """
         items = []
         dimname = str(dim)
@@ -1094,16 +1446,42 @@ class Drilldown:
         return items
 
     def __getitem__(self, key):
-        """Enhanced item access with bounds checking."""
+        """Access drilldown item by index with bounds checking.
+
+        Args:
+            key (int): Index of drilldown item to retrieve
+
+        Returns:
+            DrilldownItem: Drilldown item at specified index
+
+        Raises:
+            ArgumentError: If index is out of bounds
+
+        Example:
+            >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
+            >>> first_item = drilldown[0]  # time:year item
+            >>> second_item = drilldown[1]  # geography:country item
+        """
         try:
             return self.drilldown[key]
         except (IndexError, KeyError) as e:
             raise ArgumentError(f"Invalid drilldown index: {key}") from e
 
     def deepest_levels(self) -> list[tuple]:
-        """
-        Enhanced deepest levels with improved error handling.
-        Maintains API compatibility.
+        """Get the deepest level for each dimension in the drilldown.
+
+        Returns:
+            list[tuple]: List of (dimension, hierarchy, level) tuples representing
+                the deepest level for each drilldown dimension
+
+        Example:
+            >>> drilldown = Drilldown(["time:year", "geography:state"], cell)
+            >>> levels = drilldown.deepest_levels()
+            >>> # [(<time_dim>, <default_hier>, <year_level>),
+            >>> #  (<geo_dim>, <default_hier>, <state_level>)]
+
+        Note:
+            Malformed items are silently skipped to maintain robustness.
         """
         levels = []
 
@@ -1118,9 +1496,34 @@ class Drilldown:
         return levels
 
     def high_cardinality_levels(self, cell: Cell) -> list:
-        """
-        Enhanced high cardinality detection with proper error handling.
-        Maintains API compatibility.
+        """Identify high-cardinality levels that require pagination.
+
+        High-cardinality levels (like individual customers or products) can return
+        millions of results and should require pagination parameters to prevent
+        memory exhaustion and slow queries.
+
+        Args:
+            cell (Cell): Current cell context to check for level constraints
+
+        Returns:
+            list[Level]: Levels marked as high cardinality that are not constrained
+                by the current cell (i.e., would return large result sets)
+
+        Example:
+            >>> # Cell with no constraints on customer dimension
+            >>> cell = Cell(cube)
+            >>> drilldown = Drilldown(["customer:individual"], cell)
+            >>> high_card = drilldown.high_cardinality_levels(cell)
+            >>> if high_card:
+            ...     print("Need pagination!")  # individual customer level is high cardinality
+
+            >>> # Cell with customer filter constrains the results
+            >>> cell = Cell(cube).point_cut("customer", ["enterprise_customers"])
+            >>> high_card = drilldown.high_cardinality_levels(cell)
+            >>> # Returns empty - customer level is now constrained
+
+        Note:
+            Used by browsers to enforce pagination requirements for large dimensions.
         """
         high_card_levels = []
 
@@ -1144,9 +1547,42 @@ class Drilldown:
         return high_card_levels
 
     def result_levels(self, include_split=False) -> dict[str, list[str]]:
-        """
-        Enhanced result levels with improved error handling.
-        Maintains API compatibility.
+        """Generate levels dictionary for result metadata.
+
+        Creates a mapping of dimension names to their drilled-down level names,
+        used for result interpretation and UI column generation.
+
+        Args:
+            include_split (bool): Whether to include split dimension in results
+
+        Returns:
+            dict[str, list[str]]: Mapping of dimension keys to level names
+                - Keys: dimension names or "dimension@hierarchy" for non-default hierarchies
+                - Values: list of level names being drilled down to
+
+        Example:
+            >>> drilldown = Drilldown([
+            ...     ("time", None, "year"),           # Default hierarchy
+            ...     ("time", "fiscal", "quarter"),   # Custom hierarchy
+            ...     ("geography", None, "country")
+            ... ], cell)
+            >>> levels = drilldown.result_levels()
+            >>> print(levels)
+            {
+                'time': ['year'],
+                'time@fiscal': ['quarter'],
+                'geography': ['country']
+            }
+
+            >>> # With split dimension
+            >>> levels = drilldown.result_levels(include_split=True)
+            >>> print(levels)
+            {
+                'time': ['year'],
+                'time@fiscal': ['quarter'],
+                'geography': ['country'],
+                '__within_split__': ['__within_split__']
+            }
         """
         result = {}
 
@@ -1172,9 +1608,22 @@ class Drilldown:
 
     @property
     def key_attributes(self) -> list:
-        """
-        Enhanced key attributes with error handling.
-        Maintains API compatibility.
+        """Get all key attributes for drilled-down levels.
+
+        Returns:
+            list[Attribute]: Key attributes for all levels in the drilldown,
+                used for result row identification and grouping
+
+        Example:
+            >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
+            >>> keys = drilldown.key_attributes
+            >>> # [<year_key_attr>, <country_key_attr>]
+
+        Note:
+            Key attributes are used for:
+            - SQL GROUP BY clauses
+            - Result row identification
+            - Drill-down navigation paths
         """
         attributes = []
         for item in self.drilldown:
@@ -1188,9 +1637,22 @@ class Drilldown:
 
     @property
     def all_attributes(self) -> list:
-        """
-        Enhanced all attributes with error handling.
-        Maintains API compatibility.
+        """Get all attributes for drilled-down levels.
+
+        Returns:
+            list[Attribute]: All attributes (keys, labels, details) for all levels
+                in the drilldown, used for complete result column definitions
+
+        Example:
+            >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
+            >>> attrs = drilldown.all_attributes
+            >>> # [<year_key>, <year_label>, <country_key>, <country_label>, <country_code>, ...]
+
+        Note:
+            All attributes include:
+            - Key attributes (for grouping)
+            - Label attributes (for display)
+            - Detail attributes (for additional context)
         """
         attributes = []
         for item in self.drilldown:
@@ -1205,9 +1667,20 @@ class Drilldown:
 
     @property
     def natural_order(self) -> list[tuple]:
-        """
-        Enhanced natural order with type safety.
-        Maintains API compatibility.
+        """Get natural ordering specification for drilldown levels.
+
+        Returns:
+            list[tuple]: List of (attribute, direction) tuples defining the natural
+                sort order for drilldown results
+
+        Example:
+            >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
+            >>> order = drilldown.natural_order
+            >>> # [(<year_order_attr>, 'asc'), (<country_order_attr>, 'asc')]
+
+        Note:
+            Natural order is used when no explicit ordering is specified.
+            Each level defines its preferred ordering attribute and direction.
         """
         order = []
 
@@ -1224,22 +1697,61 @@ class Drilldown:
         return order
 
     def has_dimension(self, dim) -> bool:
-        """
-        Enhanced dimension checking with type safety.
-        Maintains API compatibility.
+        """Check if drilldown contains a specific dimension.
+
+        Args:
+            dim (str | Dimension): Dimension name or object to check
+
+        Returns:
+            bool: True if dimension is included in this drilldown
+
+        Example:
+            >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
+            >>> drilldown.has_dimension("time")     # True
+            >>> drilldown.has_dimension("product")  # False
         """
         return str(dim) in self._contained_dimensions
 
     def __len__(self) -> int:
-        """Enhanced length with bounds checking."""
+        """Get number of drilldown items.
+
+        Returns:
+            int: Number of dimensions being drilled down
+
+        Example:
+            >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
+            >>> len(drilldown)  # 2
+        """
         return len(self.drilldown)
 
     def __iter__(self):
-        """Enhanced iteration with error handling."""
+        """Iterate over drilldown items.
+
+        Yields:
+            DrilldownItem: Each drilldown item in order
+
+        Example:
+            >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
+            >>> for item in drilldown:
+            ...     print(f"{item.dimension.name}:{item.levels[-1].name}")
+            time:year
+            geography:country
+        """
         return iter(self.drilldown)
 
     def __bool__(self) -> bool:
-        """Enhanced boolean conversion."""
+        """Check if drilldown has any items.
+
+        Returns:
+            bool: True if drilldown contains any dimensions
+
+        Example:
+            >>> empty_drilldown = Drilldown([], cell)
+            >>> bool(empty_drilldown)  # False
+            >>>
+            >>> drilldown = Drilldown(["time:year"], cell)
+            >>> bool(drilldown)  # True
+        """
         return len(self.drilldown) > 0
 
 
@@ -1271,7 +1783,7 @@ def levels_from_drilldown(cell, drilldown):
 
     for obj in drilldown:
         try:
-            if isinstance(obj, compat.string_type):
+            if isinstance(obj, str):
                 obj = string_to_dimension_level(obj)
             elif isinstance(obj, DrilldownItem):
                 obj = (obj.dimension, obj.hierarchy, obj.levels[-1])
