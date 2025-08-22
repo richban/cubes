@@ -6,9 +6,6 @@ import unittest
 from cubes.metadata_v2.base import MetadataObject
 from pydantic import ValidationError
 
-from cubes.errors import ModelError, ArgumentError
-
-
 class MockModelObject(MetadataObject):
     """Mock model object for testing"""
     pass

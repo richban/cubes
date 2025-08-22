@@ -100,13 +100,10 @@ class AttributeBase(MetadataObject):
         return hash(self.ref)
 
 
-
-
 class Attribute(AttributeBase):
     """Dimension attribute object. Also used as fact detail."""
 
     _dimension: Any | None = PrivateAttr(default=None)
-
 
     @computed_field
     @property
@@ -125,7 +122,6 @@ class Attribute(AttributeBase):
     def dimension(self, dimension):
         """Set the parent dimension and update ref accordingly"""
         self._dimension = dimension
-
 
 
 class Measure(AttributeBase):

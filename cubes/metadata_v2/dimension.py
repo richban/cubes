@@ -692,7 +692,7 @@ class Dimension(MetadataObject):
 
         return results
 
-    def __eq__(self, other):
+    def __eq__(self, other: "Dimension"):
         if not isinstance(other, Dimension):
             return False
         return (

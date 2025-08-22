@@ -7,7 +7,6 @@ from cubes.metadata_v2.attributes import (
     AttributeBase, Attribute, Measure, MeasureAggregate, 
     OrderType, NonAdditiveType
 )
-from cubes.errors import ModelError, ArgumentError, ExpressionError
 from pydantic import ValidationError
 
 
