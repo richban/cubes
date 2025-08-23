@@ -7,22 +7,21 @@ in type safety, error handling, and performance.
 from __future__ import annotations
 
 import functools
+from abc import abstractmethod
 from collections import namedtuple
 from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+# from cubes.calendar import CalendarMemberConverter
+from cubes.common import IgnoringDictionary
+from cubes.errors import ArgumentError, NoSuchAttributeError
+from cubes.logging import get_logger
 from cubes.metadata_v2 import Cube, Dimension, Level, MeasureAggregate
 from cubes.query.statutils import available_calculators, calculators_for_aggregates
-
-from ..calendar import CalendarMemberConverter
-from ..common import IgnoringDictionary
-from ..errors import ArgumentError, HierarchyError, NoSuchAttributeError
-from ..logging import get_logger
-from ..metadata import string_to_dimension_level
-from .cells import Cell, PointCut, RangeCut, SetCut
-from .report_models import QuerySpec, ReportRequest, ReportResult
+from cubes.query_v2.cells import Cell, PointCut, RangeCut, SetCut
+from cubes.query_v2.report_models import QuerySpec, ReportRequest, ReportResult
 
 # API compatibility exports - maintain exact same interface
 __all__ = [
@@ -32,7 +31,6 @@ __all__ = [
     "Facts",
     "Drilldown",
     "DrilldownItem",
-    "levels_from_drilldown",
     "TableRow",
     "SPLIT_DIMENSION_NAME",
 ]
@@ -40,6 +38,10 @@ __all__ = [
 # Constants for API compatibility
 SPLIT_DIMENSION_NAME = "__within_split__"
 NULL_PATH_VALUE = "__null__"
+
+DrilldownItem = namedtuple(
+    "DrilldownItem", ["dimension", "hierarchy", "levels", "keys"]
+)
 
 
 # Type-safe enums for modern implementation
@@ -53,13 +55,19 @@ class OrderDirection(str, Enum):
 # Modern data structures with type safety
 @dataclass(frozen=True, slots=True)
 class DrilldownSpec:
-    """Immutable drilldown specification for performance and type safety."""
+    """Immutable drilldown specification for parsing and validation.
+
+    This class handles only the parsing of drilldown specifications from various
+    input formats into a normalized form. It does NOT resolve against cubes or
+    perform any cube-specific validation - that's handled by the Drilldown container.
+    """
 
     dimension: str
     hierarchy: str | None = None
     level: str | None = None
 
     def __str__(self) -> str:
+        """String representation in canonical format."""
         parts = [self.dimension]
         if self.hierarchy:
             parts.append(f"@{self.hierarchy}")
@@ -136,115 +144,52 @@ class DrilldownSpec:
         return cls(dimension=dimension, hierarchy=hierarchy, level=level)
 
     @classmethod
-    def from_legacy(cls, legacy_spec: Any) -> DrilldownSpec:
+    def from_format(cls, obj: Any) -> DrilldownSpec:
         """
-        Unified conversion method from various legacy formats.
+        Convert various legacy input formats to DrilldownSpec.
 
         Supports:
-        - String: 'dimension[@hierarchy][:level]'
+        - String: "dimension@hierarchy:level"
         - Tuple: (dimension, hierarchy, level)
-        - DrilldownItem: Legacy namedtuple
-        - Dimension: Dimension object (uses default hierarchy and last level)
+        - DrilldownItem: Extract spec from resolved item
+        - Dimension: Create spec from dimension object
 
         Args:
-            legacy_spec: Legacy drilldown specification in various formats
+            obj: Input object in various formats
 
         Returns:
             DrilldownSpec instance
 
         Raises:
-            ArgumentError: If format is not supported or invalid
+            ArgumentError: If format is unsupported
         """
-        if isinstance(legacy_spec, DrilldownSpec):
-            return legacy_spec
-
-        elif isinstance(legacy_spec, str):
-            return cls.from_string(legacy_spec)
-
-        elif isinstance(legacy_spec, tuple):
-            if len(legacy_spec) == 3:
-                return cls.from_tuple(legacy_spec)
-            else:
-                raise ArgumentError(f"Unsupported tuple length: {len(legacy_spec)}")
-
-        elif hasattr(legacy_spec, "dimension") and hasattr(legacy_spec, "hierarchy"):
-            # DrilldownItem or similar
-            dimension = str(legacy_spec.dimension)
-            hierarchy = str(legacy_spec.hierarchy) if legacy_spec.hierarchy else None
-            level = None
-
-            # Try to extract level if available
-            if hasattr(legacy_spec, "levels") and legacy_spec.levels:
-                level = str(legacy_spec.levels[-1])  # Use deepest level
-
-            return cls(dimension=dimension, hierarchy=hierarchy, level=level)
-
-        elif hasattr(legacy_spec, "name"):
-            # Dimension object
-            dimension = str(legacy_spec.name)
-            # Use default hierarchy's last level
-            hierarchy = None
-            level = None
-
-            if hasattr(legacy_spec, "hierarchy") and callable(legacy_spec.hierarchy):
-                default_hier = legacy_spec.hierarchy()
-                if hasattr(default_hier, "levels") and default_hier.levels:
-                    level = str(default_hier.levels[-1])
-
-            return cls(dimension=dimension, hierarchy=hierarchy, level=level)
-
+        if isinstance(obj, str):
+            return cls.from_string(obj)
+        elif isinstance(obj, DrilldownItem):
+            # Convert existing DrilldownItem back to spec
+            level_name = obj.levels[-1].name if obj.levels else None
+            return cls(
+                dimension=obj.dimension.name,
+                hierarchy=obj.hierarchy.name
+                if obj.hierarchy != obj.dimension.hierarchy()
+                else None,
+                level=level_name,
+            )
+        elif isinstance(obj, Dimension):
+            # Convert Dimension object to spec
+            return cls(
+                dimension=obj.name,
+                hierarchy=None,
+                level=obj.hierarchy().levels[-1].name,
+            )
+        elif isinstance(obj, (tuple, list)) and len(obj) == 3:
+            return cls.from_tuple(obj)
+        elif isinstance(obj, DrilldownSpec):
+            return obj
         else:
             raise ArgumentError(
-                f"Unsupported drilldown specification type: {type(legacy_spec)}"
+                f"Unsupported drilldown specification format: {type(obj)} - {obj}"
             )
-
-    def validate_against_cube(self, cube) -> tuple[Dimension, Level | None]:
-        """
-        Validate this specification against a cube's metadata.
-
-        Args:
-            cube: Cube instance to validate against
-
-        Returns:
-            Tuple of (dimension, level) objects from cube metadata
-
-        Raises:
-            ValidationError: If dimension/hierarchy/level doesn't exist
-        """
-        try:
-            dimension = cube.dimension(self.dimension)
-        except Exception as e:
-            raise ValidationError(
-                f"Unknown dimension '{self.dimension}'",
-                field="dimension",
-                value=self.dimension,
-                cause=e,
-            ) from e
-
-        try:
-            hierarchy = dimension.hierarchy(self.hierarchy)
-        except Exception as e:
-            raise ValidationError(
-                f"Unknown hierarchy '{self.hierarchy}' in dimension '{self.dimension}'",
-                field="hierarchy",
-                value=self.hierarchy,
-                cause=e,
-            ) from e
-
-        level = None
-        if self.level:
-            try:
-                level = hierarchy.level(self.level)
-            except Exception as e:
-                raise ValidationError(
-                    f"Unknown level '{self.level}' in hierarchy '{hierarchy.name}' "
-                    f"of dimension '{self.dimension}'",
-                    field="level",
-                    value=self.level,
-                    cause=e,
-                ) from e
-
-        return dimension, level
 
 
 # Enhanced exception hierarchy with proper context
@@ -688,7 +633,7 @@ class AggregationBrowser:
         """Cached level lookup with validation."""
         return self._metadata_cache.get_level(dimension_name, level_name)
 
-    @abstracmethod
+    @abstractmethod
     def provide_aggregate(
         self,
         cell: Cell | None = None,
@@ -1306,69 +1251,191 @@ class AggregationResult:
 
 # Enhanced Drilldown class with modern features
 class Drilldown:
-    """Multidimensional drill-down specification for OLAP queries.
+    """Container for resolved drilldown items with legacy browser interface.
 
-    The Drilldown class manages how aggregated data should be broken down across
-    multiple dimensions and hierarchy levels. It transforms user specifications
-    into validated dimensional breakdowns that can be executed by query engines.
+    This class matches the legacy Drilldown interface exactly, providing the same
+    access patterns that browsers expect: index access, dimension name access, and
+    iteration over drilldown items.
 
-    This class acts as the "navigation engine" for OLAP analysis, enabling users
-    to explore data cubes by drilling down through hierarchical dimensions like
-    time (year → quarter → month) or geography (country → state → city).
+    Unlike the legacy version, this uses modern DrilldownSpec for parsing and
+    provides better error handling and validation.
 
     Example:
-        Basic drilldown by single dimension:
-        >>> drilldown = Drilldown(["time:year"], cell)
-        >>> print(drilldown)  # "time:year"
-
-        Multi-dimensional drilldown:
+        >>> cell = Cell(cube)
         >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
         >>> print(drilldown)  # "time:year,geography:country"
-
-        Hierarchical drilldown with specific hierarchy:
-        >>> drilldown = Drilldown(["time@fiscal:quarter"], cell)
-        >>> print(drilldown)  # "time@fiscal:quarter"
+        >>> first_item = drilldown[0]  # Access by index
+        >>> time_item = drilldown["time"]  # Access by dimension name
+        >>> for item in drilldown:  # Iteration support
+        ...     print(item.dimension.name)
 
     Attributes:
-        drilldown (list[DrilldownItem]): Validated drilldown items
+        drilldown (list[DrilldownItem]): Resolved drilldown items
         dimensions (list[Dimension]): Dimension objects for each drilldown
         _contained_dimensions (set[str]): Cached dimension names for fast lookup
     """
 
     def __init__(self, drilldown=None, cell=None):
-        """Initialize drilldown with validation and processing.
+        """Initialize drilldown container with resolved items.
 
         Args:
-            drilldown (list | dict | None): Drilldown specification in various formats:
+            drilldown: Drilldown specification in various formats:
                 - List of strings: ["time:year", "geography:country"]
                 - List of tuples: [("time", None, "year"), ("geography", None, "country")]
                 - List of DrilldownItems: [DrilldownItem(...), ...]
-                - Dict (deprecated): {"time": "year", "geography": "country"}
                 - None: Empty drilldown (no breakdown)
-            cell (Cell): Cell context for validation and implicit level detection
-
-        Example:
-            String format drilldown:
-            >>> cell = Cell(cube)
-            >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
-
-            Tuple format drilldown:
-            >>> drilldown = Drilldown([
-            ...     ("time", "fiscal", "quarter"),
-            ...     ("geography", None, "country")
-            ... ], cell)
+            cell: Cell context for resolution and implicit level detection
 
         Raises:
             ArgumentError: If drilldown specification is invalid
             HierarchyError: If hierarchy/level combinations are incompatible
         """
-        self.drilldown = levels_from_drilldown(cell, drilldown)
+        if not cell:
+            raise ArgumentError("Cell context is required for drilldown resolution")
+
+        # Normalize input to list format for uniform processing
+        normalized_input = self._normalize_input(drilldown)
+
+        # Resolve all specifications to DrilldownItems
+        self.drilldown = self._resolve_specifications(normalized_input, cell)
         self.dimensions = []
         self._contained_dimensions = set()
+        self._dimension_lookup = {}  # For dimension name access
 
         for dd in self.drilldown:
             self.dimensions.append(dd.dimension)
             self._contained_dimensions.add(dd.dimension.name)
+            # Support multiple items per dimension, but first one wins for name lookup
+            if dd.dimension.name not in self._dimension_lookup:
+                self._dimension_lookup[dd.dimension.name] = dd
+
+    def _normalize_input(self, drilldown):
+        """Normalize any input format to a list for uniform processing.
+
+        Handles:
+        - Single items: string, tuple, DrilldownSpec, DrilldownItem, Dimension
+        - Lists of items: [string, string], [tuple, tuple], mixed formats
+        - Empty: None, []
+        """
+        if drilldown is None:
+            return []
+
+        # Check if it's a single item that should be wrapped in a list
+        # This handles: string, DrilldownSpec, DrilldownItem, Dimension, or 3-tuple
+        if not isinstance(drilldown, list):
+            # Single non-list item - wrap it
+            return [drilldown]
+
+        # Special case: single tuple with 3 string elements is a drilldown spec
+        if (
+            isinstance(drilldown, tuple)
+            and len(drilldown) == 3
+            and all(isinstance(x, (str, type(None))) for x in drilldown)
+        ):
+            return [drilldown]
+
+        # Already a list - return as-is
+        return drilldown
+
+    def _resolve_specifications(
+        self, drilldown: list, cell: Cell
+    ) -> list[DrilldownItem]:
+        """Resolve list of drilldown specifications into DrilldownItems."""
+        result = []
+
+        for obj in drilldown:
+            try:
+                # Convert to DrilldownSpec using the new unified method
+                spec = DrilldownSpec.from_format(obj)
+
+                # Resolve against cube
+                resolved_item = self._resolve_spec(spec, cell.cube, cell)
+                result.append(resolved_item)
+
+            except Exception as e:
+                raise ArgumentError(
+                    f"Invalid drilldown specification '{obj}': {e}"
+                ) from e
+
+        return result
+
+    def _resolve_spec(
+        self, spec: DrilldownSpec, cube: Cube, cell: Cell | None = None
+    ) -> DrilldownItem:
+        """
+        Resolve a DrilldownSpec against a cube to create a DrilldownItem.
+
+        Args:
+            spec: DrilldownSpec to resolve
+            cube: Cube instance to resolve against
+            cell: Optional Cell context for implicit level detection
+
+        Returns:
+            DrilldownItem with resolved dimension, hierarchy, levels, and keys
+
+        Raises:
+            ArgumentError: If dimension/hierarchy/level doesn't exist
+            HierarchyError: If hierarchy constraints are violated
+        """
+        try:
+            # Get dimension and hierarchy objects
+            dimension = cube.dimension(spec.dimension)
+            hierarchy = dimension.hierarchy(spec.hierarchy)
+
+            # Determine levels to include
+            if spec.level:
+                # Explicit level specified
+                index = hierarchy.level_index(spec.level)
+                levels = hierarchy[: index + 1]
+            elif dimension.is_flat:
+                # Flat dimension - use all levels
+                levels = hierarchy[:]
+            else:
+                # Implicit level detection based on cell context
+                if cell:
+                    cut = cell.point_cut_for_dimension(dimension.name)
+                    if cut:
+                        cut_hierarchy = dimension.hierarchy(cut.hierarchy)
+                        depth = cut.level_depth()
+                        if cut.invert:
+                            depth -= 1
+                    else:
+                        cut_hierarchy = hierarchy
+                        depth = 0
+
+                    if cut_hierarchy != hierarchy:
+                        raise HierarchyError(
+                            f"Cut hierarchy {hierarchy} for dimension {dimension} is "
+                            f"different than drilldown hierarchy {cut_hierarchy}. "
+                            f"Cannot determine implicit next level."
+                        )
+
+                    if depth >= len(hierarchy):
+                        raise HierarchyError(
+                            f"Hierarchy {hierarchy} in dimension {dimension} has only "
+                            f"{len(hierarchy)} levels, cannot drill to {depth + 1}"
+                        )
+
+                    levels = hierarchy[: depth + 1]
+                else:
+                    # No cell context - use first level
+                    levels = hierarchy[:1]
+
+            # Convert to tuple and extract keys
+            levels = tuple(levels)
+            keys = [level.key.ref for level in levels]
+
+            # Create DrilldownItem with resolved objects
+            return DrilldownItem(dimension, hierarchy, levels, keys)
+
+        except (ArgumentError, HierarchyError):
+            # Re-raise these as they have proper context
+            raise
+        except Exception as e:
+            # Wrap other exceptions with context
+            raise ArgumentError(
+                f"Failed to resolve drilldown specification '{spec}' against cube '{cube.name}': {e}"
+            ) from e
 
     def __str__(self) -> str:
         """Return comma-separated string representation of drilldown.
@@ -1446,26 +1513,45 @@ class Drilldown:
         return items
 
     def __getitem__(self, key):
-        """Access drilldown item by index with bounds checking.
+        """Access drilldown item by index or dimension name (legacy compatibility).
 
         Args:
-            key (int): Index of drilldown item to retrieve
+            key (int | str): Index of drilldown item or dimension name
 
         Returns:
-            DrilldownItem: Drilldown item at specified index
+            DrilldownItem: Drilldown item at specified index or for dimension
 
         Raises:
-            ArgumentError: If index is out of bounds
+            ArgumentError: If index is out of bounds or dimension not found
 
         Example:
             >>> drilldown = Drilldown(["time:year", "geography:country"], cell)
-            >>> first_item = drilldown[0]  # time:year item
-            >>> second_item = drilldown[1]  # geography:country item
+            >>> first_item = drilldown[0]  # Access by index
+            >>> time_item = drilldown["time"]  # Access by dimension name
         """
-        try:
-            return self.drilldown[key]
-        except (IndexError, KeyError) as e:
-            raise ArgumentError(f"Invalid drilldown index: {key}") from e
+        if isinstance(key, str):
+            if key in self._dimension_lookup:
+                return self._dimension_lookup[key]
+            else:
+                raise ArgumentError(f"Dimension '{key}' not found in drilldown")
+        else:
+            # Index access
+            try:
+                return self.drilldown[key]
+            except (IndexError, TypeError) as e:
+                raise ArgumentError(f"Invalid drilldown index: {key}") from e
+
+    def __iter__(self):
+        """Iterate over drilldown items (legacy compatibility)."""
+        return iter(self.drilldown)
+
+    def __len__(self):
+        """Return number of drilldown items."""
+        return len(self.drilldown)
+
+    def __bool__(self):
+        """Return True if drilldown has items."""
+        return len(self.drilldown) > 0
 
     def deepest_levels(self) -> list[tuple]:
         """Get the deepest level for each dimension in the drilldown.
@@ -1756,86 +1842,3 @@ class Drilldown:
 
 
 # DrilldownItem namedtuple for API compatibility
-DrilldownItem = namedtuple(
-    "DrilldownItem", ["dimension", "hierarchy", "levels", "keys"]
-)
-
-
-# Enhanced levels_from_drilldown function
-def levels_from_drilldown(cell, drilldown):
-    """
-    Enhanced drilldown processing with improved validation.
-    Maintains API compatibility.
-    """
-    if not drilldown:
-        return []
-
-    result = []
-
-    # Enhanced dictionary handling with deprecation warning
-    if isinstance(drilldown, dict):
-        logger = get_logger()
-        logger.warning(
-            "drilldown as dictionary is deprecated. Use a list of: "
-            "(dim, hierarchy, level) instead"
-        )
-        drilldown = [(dim, None, level) for dim, level in list(drilldown.items())]
-
-    for obj in drilldown:
-        try:
-            if isinstance(obj, str):
-                obj = string_to_dimension_level(obj)
-            elif isinstance(obj, DrilldownItem):
-                obj = (obj.dimension, obj.hierarchy, obj.levels[-1])
-            elif isinstance(obj, Dimension):
-                obj = (obj, obj.hierarchy(), obj.hierarchy().levels[-1])
-            elif len(obj) != 3:
-                raise ArgumentError(
-                    f"Drilldown item should be either a string "
-                    f"or a tuple of three elements. Is: {obj}"
-                )
-
-            dim, hier, level = obj
-            dim = cell.cube.dimension(dim)
-            hier = dim.hierarchy(hier)
-
-            if level:
-                index = hier.level_index(level)
-                levels = hier[: index + 1]
-            elif dim.is_flat:
-                levels = hier[:]
-            else:
-                cut = cell.point_cut_for_dimension(dim)
-                if cut:
-                    cut_hierarchy = dim.hierarchy(cut.hierarchy)
-                    depth = cut.level_depth()
-                    if cut.invert:
-                        depth -= 1
-                else:
-                    cut_hierarchy = hier
-                    depth = 0
-
-                if cut_hierarchy != hier:
-                    raise HierarchyError(
-                        f"Cut hierarchy {hier} for dimension {dim} is "
-                        f"different than drilldown hierarchy {cut_hierarchy}. "
-                        f"Cannot determine implicit next level."
-                    )
-
-                if depth >= len(hier):
-                    raise HierarchyError(
-                        f"Hierarchy {hier} in dimension {dim} has only "
-                        f"{len(hier)} levels, cannot drill to {depth + 1}"
-                    )
-
-                levels = hier[: depth + 1]
-
-            levels = tuple(levels)
-            keys = [level.key.ref for level in levels]
-            result.append(DrilldownItem(dim, hier, levels, keys))
-
-        except Exception as e:
-            # Enhanced error handling with context
-            raise ArgumentError(f"Invalid drilldown specification '{obj}': {e}") from e
-
-    return result
