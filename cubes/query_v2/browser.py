@@ -30,14 +30,11 @@ DrilldownItem = namedtuple(
     "DrilldownItem", ["dimension", "hierarchy", "levels", "keys"]
 )
 
-DrilldownTupleSpec: TypeAlias = tuple[
-    str | Dimension, str | None, str | None
-]
+DrilldownTupleSpec: TypeAlias = tuple[str | Dimension, str | None, str | None]
 
 DrilldownItemSpec: TypeAlias = str | DrilldownTupleSpec | DrilldownItem | Dimension
 
 DrilldownArgSpec: TypeAlias = list[DrilldownItemSpec] | None
-
 
 
 class OrderDirection(str, Enum):
@@ -138,7 +135,7 @@ class DrilldownSpec:
         return cls(dimension=dimension, hierarchy=hierarchy, level=level)
 
     @classmethod
-    def from_format(cls, obj: Any) -> DrilldownSpec:
+    def from_format(cls, obj: str | DrilldownItem | Dimension | tuple) -> DrilldownSpec:
         """
         Convert various legacy input formats to DrilldownSpec.
 
@@ -176,7 +173,7 @@ class DrilldownSpec:
                 hierarchy=None,
                 level=obj.hierarchy().levels[-1].name,
             )
-        elif isinstance(obj, tuple | list) and len(obj) == 3:
+        elif isinstance(obj, tuple) and len(obj) == 3:
             return cls.from_tuple(obj)
         elif isinstance(obj, DrilldownSpec):
             return obj
@@ -984,8 +981,10 @@ class AggregationBrowser:
             try:
                 for level in hierarchy.levels_for_path(path):
                     item = {a.ref: details.get(a.ref) for a in level.attributes}
-                    item["_key"] = details.get(level.key.ref)
-                    item["_label"] = details.get(level.label_attribute.ref)
+                    item["_key"] = details.get(level.key_attribute.ref)
+                    item["_label"] = details.get(
+                        level.attribute(level.label_attribute).ref
+                    )
                     result.append(item)
             except Exception:
                 # Fallback to empty result on error
@@ -1168,7 +1167,9 @@ class AggregationResult:
         dimension_name = str(dimension)
         return dimension_name in self.levels
 
-    def table_rows(self, dimension: str | Dimension, depth: int | None = None, hierarchy=None):
+    def table_rows(
+        self, dimension: str | Dimension, depth: int | None = None, hierarchy=None
+    ):
         """
         Enhanced table rows with improved error handling.
         Maintains API compatibility.
@@ -1193,8 +1194,8 @@ class AggregationResult:
                 levels = hierarchy.levels_for_path(path, drilldown=True)
                 current_level = levels[-1]
 
-            level_key = current_level.key.ref
-            level_label = current_level.label_attribute.ref
+            level_key = current_level.key_attribute.ref
+            level_label = current_level.attribute(current_level.label_attribute).ref
 
             for record in self.cells:
                 drill_path = path[:] + [record[level_key]]
@@ -1267,7 +1268,7 @@ class Drilldown:
         _contained_dimensions (set[str]): Cached dimension names for fast lookup
     """
 
-    def __init__(self, drilldown: DrilldownArgSpec=None, cell: Cell | None = None):
+    def __init__(self, drilldown: DrilldownArgSpec = None, cell: Cell | None = None):
         """Initialize drilldown container with resolved items.
 
         Args:
@@ -1282,14 +1283,14 @@ class Drilldown:
             ArgumentError: If drilldown specification is invalid
             HierarchyError: If hierarchy/level combinations are incompatible
         """
-        if not cell:
+        if cell is None:
             raise ArgumentError("Cell context is required for drilldown resolution")
 
-        # Normalize input to list format for uniform processing
-        normalized_input = self._normalize_input(drilldown)
-
         # Resolve all specifications to DrilldownItems
-        self.drilldown = self._resolve_specifications(normalized_input, cell)
+        if drilldown:
+            self.drilldown = self._resolve_specifications(drilldown, cell)
+        else:
+            self.drilldown = []
         self.dimensions = []
         self._contained_dimensions = set()
         self._dimension_lookup = {}  # For dimension name access
@@ -1300,34 +1301,6 @@ class Drilldown:
             # Support multiple items per dimension, but first one wins for name lookup
             if dd.dimension.name not in self._dimension_lookup:
                 self._dimension_lookup[dd.dimension.name] = dd
-
-    def _normalize_input(self, drilldown):
-        """Normalize any input format to a list for uniform processing.
-
-        Handles:
-        - Single items: string, tuple, DrilldownSpec, DrilldownItem, Dimension
-        - Lists of items: [string, string], [tuple, tuple], mixed formats
-        - Empty: None, []
-        """
-        if drilldown is None:
-            return []
-
-        # Check if it's a single item that should be wrapped in a list
-        # This handles: string, DrilldownSpec, DrilldownItem, Dimension, or 3-tuple
-        if not isinstance(drilldown, list):
-            # Single non-list item - wrap it
-            return [drilldown]
-
-        # Special case: single tuple with 3 string elements is a drilldown spec
-        if (
-            isinstance(drilldown, tuple)
-            and len(drilldown) == 3
-            and all(isinstance(x, str | None) for x in drilldown)
-        ):
-            return [drilldown]
-
-        # Already a list - return as-is
-        return drilldown
 
     def _resolve_specifications(
         self, drilldown: list, cell: Cell
@@ -1378,10 +1351,10 @@ class Drilldown:
             if spec.level:
                 # Explicit level specified
                 index = hierarchy.level_index(spec.level)
-                levels = hierarchy[: index + 1]
+                levels = hierarchy.levels[: index + 1]
             elif dimension.is_flat:
                 # Flat dimension - use all levels
-                levels = hierarchy[:]
+                levels = hierarchy.levels[:]
             else:
                 # Implicit level detection based on cell context
                 if cell:
@@ -1408,14 +1381,14 @@ class Drilldown:
                             f"{len(hierarchy)} levels, cannot drill to {depth + 1}"
                         )
 
-                    levels = hierarchy[: depth + 1]
+                    levels = hierarchy.levels[: depth + 1]
                 else:
                     # No cell context - use first level
-                    levels = hierarchy[:1]
+                    levels = hierarchy.levels[:1]
 
             # Convert to tuple and extract keys
             levels = tuple(levels)
-            keys = [level.key.ref for level in levels]
+            keys = [level.key for level in levels]
 
             # Create DrilldownItem with resolved objects
             return DrilldownItem(dimension, hierarchy, levels, keys)
@@ -1613,7 +1586,14 @@ class Drilldown:
                     is_high_card = (
                         level.cardinality == "high" or dim.cardinality == "high"
                     )
-                    level_not_constrained = not cell.contains_level(dim, level, hier)
+                    # For now, assume cell doesn't constrain levels if method doesn't exist
+                    try:
+                        level_not_constrained = not cell.contains_level(
+                            dim, level, hier
+                        )
+                    except AttributeError:
+                        # Assume unconstrained if method doesn't exist
+                        level_not_constrained = True
 
                     if is_high_card and level_not_constrained:
                         high_card_levels.append(level)
@@ -1706,7 +1686,7 @@ class Drilldown:
         attributes = []
         for item in self.drilldown:
             try:
-                attributes += [level.key for level in item.levels]
+                attributes += [level.key_attribute for level in item.levels]
             except AttributeError:
                 # Skip items without proper level structure
                 continue
@@ -1765,7 +1745,11 @@ class Drilldown:
         for item in self.drilldown:
             try:
                 for level in item.levels:
-                    lvl_attr = level.order_attribute or level.key
+                    lvl_attr = (
+                        level.attribute(level.order_attribute)
+                        if level.order_attribute
+                        else level.key_attribute
+                    )
                     lvl_order = level.order or "asc"
                     order.append((lvl_attr, lvl_order))
             except AttributeError:

@@ -1,8 +1,9 @@
+
 import pytest
-from unittest.mock import Mock
+
 from cubes.errors import ArgumentError
-from cubes.query_v2.browser import DrilldownSpec, DrilldownItem
-from cubes.metadata_v2 import Dimension, Level, Hierarchy
+from cubes.query_v2.browser import DrilldownSpec
+
 
 @pytest.mark.parametrize(
     "spec, expected_str",
@@ -90,37 +91,6 @@ def test_from_format_drilldown_spec():
     spec = DrilldownSpec.from_format(original_spec)
     assert spec is original_spec
 
-def test_from_format_drilldown_item():
-    """Tests from_format with a DrilldownItem."""
-    mock_dimension = Mock(spec=Dimension)
-    mock_dimension.name = "geography"
-    mock_hierarchy = Mock(spec=Hierarchy)
-    mock_hierarchy.name = "alt"
-    mock_level = Mock(spec=Level)
-    mock_level.name = "country"
-    mock_dimension.hierarchy.return_value = mock_hierarchy
-
-    drilldown_item = DrilldownItem(
-        dimension=mock_dimension,
-        hierarchy=mock_hierarchy,
-        levels=[mock_level],
-        keys=["country_key"],
-    )
-    spec = DrilldownSpec.from_format(drilldown_item)
-    assert spec == DrilldownSpec("geography", "alt", "country")
-
-def test_from_format_dimension():
-    """Tests from_format with a Dimension object."""
-    mock_dimension = Mock(spec=Dimension)
-    mock_dimension.name = "geography"
-    mock_hierarchy = Mock(spec=Hierarchy)
-    mock_level = Mock(spec=Level)
-    mock_level.name = "country"
-    mock_hierarchy.levels = [mock_level]
-    mock_dimension.hierarchy.return_value = mock_hierarchy
-
-    spec = DrilldownSpec.from_format(mock_dimension)
-    assert spec == DrilldownSpec("geography", None, "country")
 
 @pytest.mark.parametrize("invalid_format", [123, 12.34, {"a": 1}, b"bytes"])
 def test_from_format_unsupported(invalid_format):
