@@ -3,7 +3,7 @@ Modern Cell and Cut implementations using Pydantic for type safety and validatio
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Union
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
@@ -43,7 +43,7 @@ class Cut(BaseModel, ABC):
                 dimension.hierarchy(v)
             except ModelError as e:
                 msg = f"Invalid hierarchy '{v}' for dimension '{dimension.name}': {e}"
-                raise ValueError(msg)
+                raise ValueError(msg) from e
         return v
 
     @abstractmethod
@@ -94,7 +94,7 @@ class PointCut(Cut):
                 hierarchy.levels_for_path(v)
             except Exception as e:
                 msg = f"Invalid path {v} for dimension '{dimension.name}': {e}"
-                raise ValueError(msg)
+                raise ValueError(msg) from e
         return v
 
     def level_depth(self) -> int:
@@ -156,7 +156,7 @@ class RangeCut(Cut):
                 hierarchy.levels_for_path(v)
             except Exception as e:
                 msg = f"Invalid path {v} for dimension '{dimension.name}': {e}"
-                raise ValueError(msg)
+                raise ValueError(msg) from e
         return v
 
     def level_depth(self) -> int:
@@ -227,7 +227,7 @@ class SetCut(Cut):
                     hierarchy.levels_for_path(path)
             except Exception as e:
                 msg = f"Invalid paths {v} for dimension '{dimension.name}': {e}"
-                raise ValueError(msg)
+                raise ValueError(msg) from e
         return v
 
     def level_depth(self) -> int:
@@ -288,7 +288,7 @@ class Cell(BaseModel):
                     cube.dimension(cut.dimension.name)
                 except ModelError as e:
                     msg = f"Cut dimension '{cut.dimension.name}' not found in cube '{cube.name}': {e}"
-                    raise ValueError(msg)
+                    raise ValueError(msg) from e
         return v
 
     def slice(self, cut: Cut) -> "Cell":
@@ -457,4 +457,4 @@ class Cell(BaseModel):
 
 
 # Type aliases for convenience
-Cut = Union[PointCut, RangeCut, SetCut]
+Cut = PointCut | RangeCut | SetCut

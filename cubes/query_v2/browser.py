@@ -14,9 +14,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, TypeAlias
 
-# from cubes.calendar import CalendarMemberConverter
 from cubes.common import IgnoringDictionary
-from cubes.errors import ArgumentError, NoSuchAttributeError
+from cubes.errors import ArgumentError, HierarchyError, NoSuchAttributeError
 from cubes.logging import get_logger
 from cubes.metadata_v2 import Cube, Dimension, Level, MeasureAggregate
 from cubes.query.statutils import available_calculators, calculators_for_aggregates
@@ -189,7 +188,7 @@ class DrilldownSpec:
                 hierarchy=None,
                 level=obj.hierarchy().levels[-1].name,
             )
-        elif isinstance(obj, (tuple, list)) and len(obj) == 3:
+        elif isinstance(obj, tuple | list) and len(obj) == 3:
             return cls.from_tuple(obj)
         elif isinstance(obj, DrilldownSpec):
             return obj
@@ -444,9 +443,6 @@ class AggregationBrowser:
             validated_aggregates = self._prepare_aggregates(aggregates)
             validated_order = self._prepare_order(order, is_aggregate=True)
 
-            # Enhanced cell preparation with better type handling
-            converters = {"time": CalendarMemberConverter(self.calendar)}
-
             if cell is None:
                 validated_cell = Cell(cube=self.cube)
             else:
@@ -630,12 +626,12 @@ class AggregationBrowser:
             for calc in result.calculators:
                 calc(result.summary)
 
-    @functools.lru_cache(maxsize=128)
+    @functools.lru_cache(maxsize=128)  # noqa: B019
     def _get_dimension_cached(self, name: str) -> Dimension:
         """Cached dimension lookup with proper error handling."""
         return self._metadata_cache.get_dimension(name)
 
-    @functools.lru_cache(maxsize=256)
+    @functools.lru_cache(maxsize=256)  # noqa: B019
     def _get_level_cached(self, dimension_name: str, level_name: str) -> Level:
         """Cached level lookup with validation."""
         return self._metadata_cache.get_level(dimension_name, level_name)
@@ -1337,7 +1333,7 @@ class Drilldown:
         if (
             isinstance(drilldown, tuple)
             and len(drilldown) == 3
-            and all(isinstance(x, (str, type(None))) for x in drilldown)
+            and all(isinstance(x, str | None) for x in drilldown)
         ):
             return [drilldown]
 
@@ -1846,6 +1842,3 @@ class Drilldown:
             >>> bool(drilldown)  # True
         """
         return len(self.drilldown) > 0
-
-
-# DrilldownItem namedtuple for API compatibility
