@@ -30,6 +30,7 @@ class CutParser:
 
     Transforms these into modern Pydantic-validated Cut objects.
     """
+
     CUT_STRING_SEPARATOR = re.compile(r"(?<!\\)\|")
     DIMENSION_STRING_SEPARATOR = re.compile(r"(?<!\\):")
     PATH_STRING_SEPARATOR = re.compile(r"(?<!\\),")

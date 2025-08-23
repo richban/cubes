@@ -12,7 +12,7 @@ from collections import namedtuple
 from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, TypeAlias
 
 # from cubes.calendar import CalendarMemberConverter
 from cubes.common import IgnoringDictionary
@@ -43,8 +43,16 @@ DrilldownItem = namedtuple(
     "DrilldownItem", ["dimension", "hierarchy", "levels", "keys"]
 )
 
+DrilldownTupleSpec: TypeAlias = tuple[
+    str | Dimension, str | None, str | None
+]
 
-# Type-safe enums for modern implementation
+DrilldownItemSpec: TypeAlias = str | DrilldownTupleSpec | DrilldownItem | Dimension
+
+DrilldownArgSpec: TypeAlias = list[DrilldownItemSpec] | None
+
+
+
 class OrderDirection(str, Enum):
     """Type-safe order directions."""
 
@@ -52,7 +60,6 @@ class OrderDirection(str, Enum):
     DESC = "desc"
 
 
-# Modern data structures with type safety
 @dataclass(frozen=True, slots=True)
 class DrilldownSpec:
     """Immutable drilldown specification for parsing and validation.
@@ -409,7 +416,7 @@ class AggregationBrowser:
         self,
         cell: Cell | None = None,
         aggregates: list[str] | None = None,
-        drilldown: Any | None = None,
+        drilldown: DrilldownArgSpec = None,
         split: Cell | None = None,
         order: list[str | tuple] | None = None,
         page: int | None = None,
@@ -595,9 +602,9 @@ class AggregationBrowser:
 
         return validated_order
 
-    def _prepare_drilldown(self, drilldown: Any, cell: Cell) -> Drilldown:
+    def _prepare_drilldown(self, drilldown: DrilldownArgSpec, cell: Cell) -> Drilldown:
         """Enhanced drilldown preparation with validation."""
-        return Drilldown(drilldown, cell)
+        return Drilldown(drilldown=drilldown, cell=cell)
 
     def _enhance_result_with_calculations(
         self, result: AggregationResult, aggregates: list, drilldown: Drilldown, split
@@ -1176,7 +1183,7 @@ class AggregationResult:
         dimension_name = str(dimension)
         return dimension_name in self.levels
 
-    def table_rows(self, dimension, depth=None, hierarchy=None):
+    def table_rows(self, dimension: str | Dimension, depth: int | None = None, hierarchy=None):
         """
         Enhanced table rows with improved error handling.
         Maintains API compatibility.
@@ -1275,7 +1282,7 @@ class Drilldown:
         _contained_dimensions (set[str]): Cached dimension names for fast lookup
     """
 
-    def __init__(self, drilldown=None, cell=None):
+    def __init__(self, drilldown: DrilldownArgSpec=None, cell: Cell | None = None):
         """Initialize drilldown container with resolved items.
 
         Args:

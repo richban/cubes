@@ -413,9 +413,7 @@ class Cell(BaseModel):
 
         return levels
 
-    def dimension_cuts(
-        self, dimension_name: str, exclude: bool = False
-    ) -> list[Cut]:
+    def dimension_cuts(self, dimension_name: str, exclude: bool = False) -> list[Cut]:
         """Return cuts for dimension, or all except that dimension if exclude=True."""
         result = []
         for cut in self.cuts:
