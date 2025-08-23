@@ -20,21 +20,9 @@ from cubes.logging import get_logger
 from cubes.metadata_v2 import Cube, Dimension, Level, MeasureAggregate
 from cubes.query.statutils import available_calculators, calculators_for_aggregates
 from cubes.query_v2.cells import Cell, PointCut, RangeCut, SetCut
+from cubes.query_v2.parsers import CutParser
 from cubes.query_v2.report_models import QuerySpec, ReportRequest, ReportResult
 
-# API compatibility exports - maintain exact same interface
-__all__ = [
-    "AggregationBrowser",
-    "AggregationResult",
-    "CalculatedResultIterator",
-    "Facts",
-    "Drilldown",
-    "DrilldownItem",
-    "TableRow",
-    "SPLIT_DIMENSION_NAME",
-]
-
-# Constants for API compatibility
 SPLIT_DIMENSION_NAME = "__within_split__"
 NULL_PATH_VALUE = "__null__"
 
@@ -413,7 +401,7 @@ class AggregationBrowser:
 
     def aggregate(
         self,
-        cell: Cell | None = None,
+        cell: Cell | str | None = None,
         aggregates: list[str] | None = None,
         drilldown: DrilldownArgSpec = None,
         split: Cell | None = None,
@@ -440,19 +428,20 @@ class AggregationBrowser:
         """
         try:
             # Parameter preparation with enhanced validation
-            validated_aggregates = self._prepare_aggregates(aggregates)
-            validated_order = self._prepare_order(order, is_aggregate=True)
+            aggregates = self._prepare_aggregates(aggregates)
+            order = self._prepare_order(order, is_aggregate=True)
 
             if cell is None:
-                validated_cell = Cell(cube=self.cube)
-            else:
-                validated_cell = cell
+                cell = Cell(cube=self.cube)
+            elif isinstance(cell, str):
+                cuts = CutParser(cube=self.cube).parse_cuts(cell)
+                cell = Cell(self.cube, cuts)
 
-            # Enhanced split preparation
-            validated_split = split
+            if isinstance(split, str):
+                cuts = CutParser(cube=self.cube).parse_cuts(split)
+                split = Cell(self.cube, cuts)
 
-            # Drilldown preparation
-            validated_drilldown = self._prepare_drilldown(drilldown, validated_cell)
+            drilldon = self._prepare_drilldown(drilldown, cell)
 
         except Exception as e:
             # Proper exception chaining with context
@@ -460,11 +449,11 @@ class AggregationBrowser:
 
         # Delegate to implementation with enhanced validation
         result: AggregationResult = self.provide_aggregate(
-            cell=validated_cell,
-            aggregates=validated_aggregates,
-            drilldown=validated_drilldown,
-            split=validated_split,
-            order=validated_order,
+            cell=cell,
+            aggregates=aggregates,
+            drilldown=drilldon,
+            split=split,
+            order=order,
             page=page,
             page_size=page_size,
             **options,
@@ -473,9 +462,9 @@ class AggregationBrowser:
         # Enhanced post-processing with type safety
         self._enhance_result_with_calculations(
             result=result,
-            aggregates=validated_aggregates,
-            drilldown=validated_drilldown,
-            split=validated_split,
+            aggregates=aggregates,
+            drilldown=drilldon,
+            split=split,
         )
 
         return result
