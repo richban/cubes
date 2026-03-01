@@ -15,6 +15,14 @@ Started: Sun Mar  1 12:10:01 CET 2026
 - Use `Union[Attribute, str, None]` type for init parameters that accept string references
   - Resolve to Attribute in `__post_init__` using `isinstance()` checks
 - Use `object.__setattr__()` to set frozen/final fields in `__post_init__`
+- **When filtering dataclass fields, also update the field values, not just internal dicts**
+  - Example: After filtering `_level_dict`, also update `self.levels` field
+  - Otherwise property access returns stale data
+- **Template inheritance in from_schema(): explicit levels replace template levels entirely**
+  - Don't append to template levels - replace them to avoid duplicates
+- **Level filtering: dimension only keeps levels actually used in hierarchies**
+  - __post_init__ filters levels to those referenced by at least one hierarchy
+  - This matches legacy behavior where unused levels are discarded
 
 ## Sun Mar 01 2026 21:00:00 CET - US-013
 Session: [Not shared]
@@ -509,6 +517,80 @@ Session: [Not shared]
   - Schema only validates and stores the template field name
 - Extra fields are allowed (ConfigDict(extra="allow")) for forward compatibility
   - Custom fields are accessible via attribute access (e.g., dim.custom_field)
+
+## Sun Mar 02 2026 00:45:00 CET - US-017
+Session: [Not shared]
+- Implemented Dimension domain dataclass in src/cubes/metadata/models/dimension.py
+- Created comprehensive tests in src/tests/metadata/test_dimension.py (63 test cases)
+- All acceptance criteria met:
+  - Dimension dataclass with all properties: name, levels, hierarchies, _level_dict, _hierarchy_dict, _attributes, _attributes_by_ref, default_hierarchy_name, label, description, info, role, cardinality, category, master, nonadditive
+  - __post_init__ builds level/hierarchy/attribute dictionaries with validation
+  - Property getters: levels, hierarchies, level_names, is_flat, has_details, key_attributes, attributes
+  - Lookup methods: level(obj), hierarchy(obj=None), attribute(name, by_ref=False)
+  - clone() method with hierarchies/exclude_hierarchies/nonadditive/cardinality/alias support
+  - to_dict() with hierarchy_limits support for truncation/exclusion
+  - from_schema() factory method with full template inheritance support
+  - Level filtering to only those used in hierarchies (matches legacy behavior)
+  - All 63 tests pass including legacy test porting
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/models/dimension.py (complete Dimension class implementation)
+- src/cubes/metadata/models/__init__.py (added Dimension to exports)
+- src/tests/metadata/test_dimension.py (new, 63 comprehensive tests)
+- src/tests/metadata/test_attribute.py (updated to use full Dimension constructor)
+- ralph/prd.json (updated US-017 passes: true)
+- ralph/progress.txt (this entry and updated Codebase Patterns)
+
+**Learnings for future iterations:**
+- Dataclass field values must be kept in sync with internal dicts after filtering
+  - After filtering _level_dict, also update self.levels field with object.__setattr__
+  - Otherwise the field returns stale data while the dict is filtered
+- Template inheritance: explicit schema levels REPLACE template levels entirely
+  - Don't append - replace to avoid duplicate level errors
+- Hierarchy.from_schema() must handle string level names (level references)
+  - Create simple Level objects for string references that get resolved later
+- Deep copy in clone() and from_schema() creates independent level objects
+  - Level attributes are automatically disowned (dimension set to None) via __deepcopy__
+- Level filtering logic in __post_init__: dimension only keeps levels used in hierarchies
+  - Build used_level_names from all hierarchy levels, then filter _level_dict
+  - This matches legacy behavior where unused levels are discarded
+- When creating test fixtures with multiple hierarchies, use same Level objects
+  - Creating new Level objects for hierarchies results in duplicate level names
+  - Share Level objects between dimension levels and hierarchy levels
+---
 - Use object.__setattr__() to bypass frozen check when setting hierarchies in validators
   - This is needed because frozen=False still has some restrictions in Pydantic v2
+---
+
+## Sun Mar 02 2026 10:30:00 CET - US-018
+Session: [Not shared]
+- Implemented drilldown string parser in src/cubes/metadata/models/base.py
+- Created ArgumentError exception class for argument validation errors
+- Created comprehensive tests in src/tests/metadata/test_drilldown_parser.py (30 test cases)
+- All acceptance criteria met:
+  - string_to_dimension_level() function parses format: dimension@hierarchy:level
+  - Returns tuple: (dimension, hierarchy, level) where hierarchy and level are Optional
+  - Raises ArgumentError on invalid format with descriptive message containing input string
+  - Regex pattern uses [\w\d_] for identifiers (word chars, digits, underscores)
+  - Pattern anchored to end of string with $ to prevent partial matches
+  - Ported all legacy test cases including edge cases (unicode, special chars, invalid formats)
+  - All 30 tests pass including validation of error messages
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/models/base.py (added ArgumentError and string_to_dimension_level)
+- src/cubes/metadata/models/__init__.py (updated exports)
+- src/tests/metadata/test_drilldown_parser.py (new, 30 tests)
+- ralph/prd.json (updated US-018 passes: true)
+- ralph/progress.txt (this entry)
+
+**Learnings for future iterations:**
+- Regex pattern for drilldown strings: `(?P<dim>[\w\d_]+)(@(?P<hier>[\w\d_]+))?(:(?P<level>[\w\d_]+))?$`
+  - Must anchor to end with $ to ensure entire string matches
+  - Without $, partial matches occur (e.g., "date@" matches as just "date")
+- ArgumentError should be used for function argument validation (distinct from ModelError)
+- re.match() matches from beginning; use $ anchor to require full string match
+- Unicode characters are valid in identifier patterns with \w
+- Test edge cases thoroughly: trailing @, trailing :, double @, spaces, special chars
 ---

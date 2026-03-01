@@ -1,5 +1,6 @@
 """Base classes for all model objects."""
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Optional, Protocol, TypeVar
 
@@ -12,6 +13,12 @@ class ModelError(Exception):
 
 class ExpressionError(Exception):
     """Error related to expression parsing or evaluation."""
+
+    pass
+
+
+class ArgumentError(Exception):
+    """Error raised when invalid argument is passed."""
 
     pass
 
@@ -127,3 +134,46 @@ def object_dict(
         result[key] = obj
 
     return result
+
+
+def string_to_dimension_level(astring: str) -> tuple[str, Optional[str], Optional[str]]:
+    """Converts `astring` into a dimension level tuple.
+
+    The string should have a format: ``dimension@hierarchy:level``.
+    Hierarchy and level are optional.
+
+    Args:
+        astring: The drilldown string to parse.
+
+    Returns:
+        A tuple of (dimension, hierarchy, level) where hierarchy and level
+        may be None if not specified in the string.
+
+    Raises:
+        ArgumentError: When `astring` is empty or does not match expected pattern.
+
+    Example:
+        >>> string_to_dimension_level("date")
+        ('date', None, None)
+        >>> string_to_dimension_level("date@yearly")
+        ('date', 'yearly', None)
+        >>> string_to_dimension_level("date@yearly:year")
+        ('date', 'yearly', 'year')
+    """
+    if not astring:
+        raise ArgumentError("Drilldown string should not be empty")
+
+    ident = r"[\w\d_]"
+    pattern = r"(?P<dim>{}+)(@(?P<hier>{}+))?(:(?P<level>{}+))?$".format(
+        ident, ident, ident
+    )
+    match = re.match(pattern, astring)
+
+    if match:
+        d = match.groupdict()
+        return (d["dim"], d["hier"], d["level"])
+    else:
+        raise ArgumentError(
+            "String '{}' does not match drilldown level "
+            "pattern 'dimension@hierarchy:level'".format(astring)
+        )

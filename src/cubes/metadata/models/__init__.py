@@ -11,14 +11,17 @@ from cubes.metadata.models.attributes import (
     MeasureAggregate,
 )
 from cubes.metadata.models.base import (
+    ArgumentError,
     ExpressionError,
     ModelError,
     ModelObject,
     object_dict,
+    string_to_dimension_level,
 )
 from cubes.metadata.models.dimension import Dimension, Hierarchy, HierarchyError, Level
 
 __all__ = [
+    "ArgumentError",
     "Attribute",
     "AttributeBase",
     "collect_attributes",
@@ -35,4 +38,5 @@ __all__ = [
     "ModelError",
     "ModelObject",
     "object_dict",
+    "string_to_dimension_level",
 ]
