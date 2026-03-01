@@ -261,3 +261,27 @@ Session: [Not shared]
 - Regular aggregates use: name="{measure}_{function}", measure=measure_name, function=function_name
 - Both measure-only and expression-only aggregates are valid; having neither creates a base aggregate
 ---
+
+## Sun Mar 01 2026 18:30:00 CET - US-010
+Session: [Not shared]
+- Verified MeasureAggregate domain dataclass is fully implemented in src/cubes/metadata/models/attributes.py
+- Comprehensive tests exist in src/tests/metadata/test_measure.py (57 test cases total, includes Measure and MeasureAggregate)
+- All acceptance criteria met:
+  - MeasureAggregate extends AttributeBase with function, formula, measure, nonadditive, window_size properties
+  - is_base property returns True when BOTH expression AND function are falsy
+  - dependencies property returns {measure} if measure set, else expression variables via inspect_variables()
+  - Raises ModelError if both measure and expression are set (defensive programming)
+  - All tests pass (57 passed)
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- ralph/prd.json (updated US-010 passes: true)
+- ralph/progress.txt (this entry)
+
+**Learnings for future iterations:**
+- MeasureAggregate.is_base returns True only when BOTH expression AND function are falsy
+- dependencies property enforces mutual exclusivity: raises ModelError if both measure and expression are set
+- Base aggregates (no measure, no function, no expression) represent backend-provided values
+- When generating default_aggregates() from Measure, identity aggregate is special (name=measure, no measure/function)
+- Regular aggregates use pattern: name="{measure}_{function}", measure=measure_name, function=function_name
+---
