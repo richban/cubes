@@ -2,6 +2,35 @@
 Started: Sun Mar  1 12:10:01 CET 2026
 ---
 
+## Sun Mar 02 2026 17:00:00 CET - US-021
+Session: [Not shared]
+- Implemented Dimension Link Expansion utilities in src/cubes/metadata/schemas/cube.py
+- Created comprehensive tests in src/tests/metadata/test_dimension_link_expansion.py (30 test cases)
+- All acceptance criteria met:
+  - expand_dimension_links() function normalizes dimension links (strings to dicts)
+  - Supports all link options: name, hierarchies, exclude_hierarchies, default_hierarchy_name, nonadditive, cardinality, alias
+  - expand_cube_metadata() preprocesses cube definitions with legacy hierarchies support
+  - Legacy hierarchies nested dict format handled with DeprecationWarning
+  - Nonadditive propagation from cube to measures implemented
+  - All 30 tests pass including edge cases and error handling
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/schemas/cube.py (added expand_dimension_links and expand_cube_metadata)
+- src/cubes/metadata/schemas/__init__.py (updated exports)
+- src/tests/metadata/test_dimension_link_expansion.py (new, 30 tests)
+- ralph/prd.json (updated US-021 passes: true)
+- ralph/progress.txt (this entry)
+
+**Learnings for future iterations:**
+- expand_dimension_links() makes defensive copies of dicts to avoid mutating originals
+- Legacy hierarchies format uses nested dict: {"dim_name": ["hier1", "hier2"]} - now deprecated
+- Use warnings.warn() with DeprecationWarning for legacy format support
+- expand_cube_metadata() pops 'nonadditive' from metadata after propagating to measures
+- Both functions preserve all other metadata fields unchanged
+- Error messages should include the problematic values for easier debugging
+---
+
 ## Codebase Patterns
 - Use `dataclasses` with `field(default_factory=dict)` for mutable defaults
 - Type annotations must use `dict[str, Any]` instead of bare `dict` for mypy --strict
@@ -23,6 +52,40 @@ Started: Sun Mar  1 12:10:01 CET 2026
 - **Level filtering: dimension only keeps levels actually used in hierarchies**
   - __post_init__ filters levels to those referenced by at least one hierarchy
   - This matches legacy behavior where unused levels are discarded
+- **MetadataProvider is an abstract base class using ABC and @abstractmethod**
+  - Subclasses must implement list_cubes(), has_cube(), cube(), and dimension()
+  - Template resolution uses _pending set for cycle detection
+  - Check templates dict is not None before membership testing: `if templates and template_name in templates`
+
+## Sun Mar 02 2026 17:30:00 CET - US-022
+Session: [Not shared]
+- Implemented MetadataProvider base class in src/cubes/metadata/provider.py
+- Created comprehensive tests in src/tests/metadata/test_provider.py (25 test cases)
+- All acceptance criteria met:
+  - Abstract base class with required methods: list_cubes(), has_cube(name), cube(name), dimension(name, templates=None)
+  - Exception classes: NoSuchCubeError, NoSuchDimensionError, TemplateRequiredError
+  - Template resolution with _resolve_dimension_with_templates() method
+  - Cycle detection using _pending set tracking dimensions being resolved
+  - Caching with _cube_cache, _dimension_cache, _template_cache
+  - Clear cache functionality with clear_cache() method
+  - All 25 tests pass including cycle detection, caching, and error handling
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/provider.py (new, 175 lines)
+- src/cubes/metadata/__init__.py (updated exports with provider classes)
+- src/tests/metadata/test_provider.py (new, 25 tests)
+- ralph/prd.json (updated US-022 passes: true)
+- ralph/progress.txt (this entry and updated Codebase Patterns)
+
+**Learnings for future iterations:**
+- Use ABC and @abstractmethod to prevent direct instantiation of base classes
+- Template cycle detection: Track pending dimensions in a set, raise error if already in set
+- Caching pattern: Check cache before resolution, store after successful resolution
+- Exception classes should inherit from ModelError for consistent error handling
+- Check `if templates and template_name in templates:` to handle None safely
+- Pending set cleanup: Use try/finally to ensure cleanup even on exceptions
+- _resolve_dimension_with_templates() is internal helper for recursive template resolution
 
 ## Sun Mar 01 2026 21:00:00 CET - US-013
 Session: [Not shared]

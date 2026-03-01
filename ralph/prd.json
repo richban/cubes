@@ -378,8 +378,8 @@
         "Typecheck passes"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented with 30 comprehensive tests. All acceptance criteria met including dimension link expansion, legacy hierarchies handling with deprecation warnings, and nonadditive propagation. Typecheck passes with mypy --strict."
     },
     {
       "id": "US-022",
@@ -394,8 +394,8 @@
         "Typecheck passes"
       ],
       "priority": 22,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented with 25 comprehensive tests. All acceptance criteria met including exception classes (NoSuchCubeError, NoSuchDimensionError, TemplateRequiredError), abstract base class with required methods, template resolution with cycle detection, and caching. Typecheck passes with mypy --strict."
     },
     {
       "id": "US-023",

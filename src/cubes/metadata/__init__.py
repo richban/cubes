@@ -13,6 +13,12 @@ from cubes.metadata.models import (
     ModelObject,
     object_dict,
 )
+from cubes.metadata.provider import (
+    MetadataProvider,
+    NoSuchCubeError,
+    NoSuchDimensionError,
+    TemplateRequiredError,
+)
 
 __all__ = [
     # I/O functions
@@ -26,4 +32,9 @@ __all__ = [
     "ModelError",
     "ModelObject",
     "object_dict",
+    # Provider classes
+    "MetadataProvider",
+    "NoSuchCubeError",
+    "NoSuchDimensionError",
+    "TemplateRequiredError",
 ]
