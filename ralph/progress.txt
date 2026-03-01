@@ -285,3 +285,34 @@ Session: [Not shared]
 - When generating default_aggregates() from Measure, identity aggregate is special (name=measure, no measure/function)
 - Regular aggregates use pattern: name="{measure}_{function}", measure=measure_name, function=function_name
 ---
+
+## Sun Mar 01 2026 19:00:00 CET - US-011
+Session: [Not shared]
+- Implemented Attribute Dependency Utilities in src/cubes/metadata/models/attributes.py
+- Created ExpressionError exception in src/cubes/metadata/models/base.py
+- Created comprehensive tests in src/tests/metadata/test_dependencies.py (36 test cases)
+- All acceptance criteria met:
+  - collect_attributes() utility for flattening attribute lists from containers
+  - collect_dependencies() for collecting and sorting attribute dependencies
+  - depsort_attributes() with Kahn's algorithm for topological sorting
+  - Cycle detection with descriptive error messages (ExpressionError)
+  - Unknown attribute reference detection with descriptive messages
+  - Mathematical equivalence with legacy topological sort algorithm verified
+  - All legacy test cases from test_expressions.py ported and passing
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/models/base.py (added ExpressionError)
+- src/cubes/metadata/models/attributes.py (added 3 utility functions)
+- src/cubes/metadata/models/__init__.py (updated exports)
+- src/cubes/metadata/__init__.py (updated exports)
+- src/tests/metadata/test_dependencies.py (new, 36 tests)
+
+**Learnings for future iterations:**
+- Kahn's algorithm (BFS topological sort) is used for dependency sorting
+- collect_attributes() works with any object having `all_attributes` property
+- ExpressionError should be raised for both circular deps and unknown attributes
+- The legacy algorithm has subtle behavior: it returns transitive dependencies even if not requested
+- Type annotation `list[Any]` allows subclasses while satisfying mypy --strict
+- All legacy test cases must be ported to ensure mathematical equivalence
+---

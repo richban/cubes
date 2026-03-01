@@ -10,6 +10,12 @@ class ModelError(Exception):
     pass
 
 
+class ExpressionError(Exception):
+    """Error related to expression parsing or evaluation."""
+
+    pass
+
+
 def to_label(name: str, capitalize: bool = True) -> str:
     """Converts `name` into label by replacing underscores by spaces.
 

@@ -5,9 +5,14 @@ from __future__ import annotations
 import copy
 import re
 from dataclasses import asdict, dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, Optional, Set
+from typing import TYPE_CHECKING, Any, Iterable, Literal, Optional, Set
 
-from cubes.metadata.models.base import ModelError, ModelObject, to_label
+from cubes.metadata.models.base import (
+    ExpressionError,
+    ModelError,
+    ModelObject,
+    to_label,
+)
 
 if TYPE_CHECKING:
     from cubes.metadata.models.dimension import Dimension
@@ -701,3 +706,172 @@ class MeasureAggregate(AttributeBase):
         )
 
         return base_dict
+
+
+def collect_attributes(
+    attributes: Optional[list[Any]], *containers: Optional[object]
+) -> list[Any]:
+    """Collect attributes from arguments.
+
+    Collects attributes from the provided attributes list and from containers
+    that have an `all_attributes` property. Returns a flattened list of
+    attributes.
+
+    Args:
+        attributes: List of attributes to include (optional).
+        *containers: Objects with `all_attributes` property or None.
+
+    Returns:
+        Flattened list of all collected attributes.
+
+    Note:
+        This function does not check whether items are actual AttributeBase
+        objects or strings.
+
+    Example:
+        >>> attrs = [Attribute(name="a")]
+        >>> cube_attrs = cube.all_attributes  # Some container
+        >>> collect_attributes(attrs, cube)
+        [Attribute(...), ...]
+    """
+    collected: list[AttributeBase] = []
+
+    if attributes:
+        collected += attributes
+
+    for container in containers:
+        if container is not None:
+            # Check if container has all_attributes property
+            container_attrs = getattr(container, "all_attributes", None)
+            if container_attrs:
+                collected.extend(container_attrs)
+
+    return collected
+
+
+def depsort_attributes(
+    attributes: list[str], all_dependencies: dict[str, Set[str]]
+) -> list[str]:
+    """Topologically sort attributes by their dependencies.
+
+    Returns a sorted list of attribute names ordered by their dependencies,
+    starting with base attributes (those that don't depend on anything) and
+    ending with derived attributes that depend on others.
+
+    Args:
+        attributes: List of attribute names to sort.
+        all_dependencies: Dictionary where keys are attribute names and values
+            are sets of direct attribute dependencies (variables in the
+            attribute's expression).
+
+    Returns:
+        List of attribute names in topological order (dependencies first).
+
+    Raises:
+        ExpressionError: If a circular dependency is detected or an unknown
+            attribute is referenced.
+
+    Example:
+        >>> deps = {
+        ...     "a": set(),
+        ...     "b": {"a"},
+        ...     "c": {"b"}
+        ... }
+        >>> depsort_attributes(["c", "b", "a"], deps)
+        ["a", "b", "c"]
+    """
+    # Gather only relevant dependencies for the requested attributes
+    required: set[str] = set(attributes)
+    seen: set[str] = set()
+    bases: set[str] = set()
+
+    # First pass: collect all relevant dependencies (transitive closure)
+    remaining_required = required.copy()
+    while remaining_required:
+        attr = remaining_required.pop()
+        seen.add(attr)
+
+        try:
+            attr_deps = all_dependencies[attr]
+        except KeyError as e:
+            raise ExpressionError(f"Unknown attribute '{e.args[0]}'")
+
+        # If no dependencies, it's a base attribute
+        if not attr_deps:
+            bases.add(attr)
+        else:
+            # Add any unseen dependencies to the required set
+            for dep in attr_deps:
+                if dep not in seen and dep not in required:
+                    remaining_required.add(dep)
+                    required.add(dep)
+
+    # Build remaining dependencies dict (excluding bases)
+    remaining: dict[str, set[str]] = {
+        attr: set(all_dependencies[attr]) for attr in seen if attr not in bases
+    }
+
+    sorted_deps: list[str] = []
+
+    # Topological sort using Kahn's algorithm
+    while bases:
+        base = bases.pop()
+        sorted_deps.append(base)
+
+        # Find all attributes that depend on this base
+        dependants = [attr for attr, deps in remaining.items() if base in deps]
+
+        for attr in dependants:
+            # Remove the satisfied dependency
+            remaining[attr].discard(base)
+            # If no more dependencies, add to bases
+            if not remaining[attr]:
+                bases.add(attr)
+                del remaining[attr]
+
+    # Check for circular dependencies
+    if remaining:
+        remaining_str = ", ".join(sorted(remaining.keys()))
+        raise ExpressionError(
+            f"Circular attribute reference (remaining: {remaining_str})"
+        )
+
+    return sorted_deps
+
+
+def collect_dependencies(
+    attributes: list[AttributeBase], all_attributes: list[AttributeBase]
+) -> list[str]:
+    """Collect all original and dependent attributes, sorted by dependencies.
+
+    Collects all attributes including their dependencies, sorted in topological
+    order starting with base attributes (those without dependencies) and ending
+    with derived attributes.
+
+    This method is intended for backends that handle attribute expressions.
+    It can be used to generate mappings between logical references and
+    physical representations in dependency order.
+
+    Args:
+        attributes: List of attributes to collect dependencies for.
+        all_attributes: Complete list of known attributes with their
+            dependencies. Used to resolve dependency references.
+
+    Returns:
+        List of attribute references (refs) in topological order.
+
+    Example:
+        >>> attrs = [attr_c, attr_b]  # c depends on b, b depends on a
+        >>> all_attrs = [attr_a, attr_b, attr_c]
+        >>> collect_dependencies(attrs, all_attrs)
+        ['a', 'b', 'c']
+    """
+    # Build dependency map from all_attributes
+    dependencies: dict[str, Set[str]] = {
+        attr.ref: attr.dependencies for attr in all_attributes
+    }
+
+    # Get sorted list of attribute refs
+    depsorted = depsort_attributes([attr.ref for attr in attributes], dependencies)
+
+    return depsorted
