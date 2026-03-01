@@ -8,6 +8,7 @@ from cubes.metadata.schemas.attributes import (
     MeasureInput,
     MeasureSchema,
 )
+from cubes.metadata.schemas.dimension import LevelSchema
 
 __all__ = [
     "AttributeSchema",
@@ -16,4 +17,5 @@ __all__ = [
     "MeasureInput",
     "MeasureAggregateSchema",
     "MeasureAggregateInput",
+    "LevelSchema",
 ]
