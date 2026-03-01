@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import copy
 import re
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Optional, Set
+from typing import TYPE_CHECKING, Any, Literal, Optional, Set
 
 from cubes.metadata.models.base import ModelObject, to_label
+
+if TYPE_CHECKING:
+    from cubes.metadata.models.dimension import Dimension
 
 
 def inspect_variables(expression: str) -> Set[str]:
@@ -217,5 +221,127 @@ class AttributeBase(ModelObject):
                 "ref": self.ref,
             }
         )
+
+        return base_dict
+
+
+@dataclass
+class Attribute(AttributeBase):
+    """Dimension attribute object. Also used as fact detail.
+
+    Represents an attribute within a dimension or fact. Attributes have
+    an optional dimension reference that prefixes their ref when owned.
+
+    Attributes:
+        name: Attribute name, used as identifier.
+        label: Human-readable label (optional, auto-generated if not provided).
+        description: Longer description of the attribute (optional).
+        order: Default order of this attribute ('asc' or 'desc', optional).
+        info: Custom information dictionary (defaults to empty dict).
+        format: Application-specific display format (optional).
+        missing_value: Value to use when data is NULL (optional).
+        expression: Arithmetic expression for computed attributes (optional).
+        ref: Computed reference string (defaults to name or dimension.name).
+        dimension: The dimension that owns this attribute (optional).
+
+    Example:
+        >>> attr = Attribute(name="name")
+        >>> attr.ref
+        'name'
+        >>> # When assigned to a dimension, ref includes dimension prefix
+        >>> # attr.dimension = Dimension(name="customer")
+        >>> # attr.ref
+        # 'customer.name'
+    """
+
+    _dimension: Optional["Dimension"] = field(default=None, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Initialize computed fields after dataclass initialization."""
+        # Call parent's post_init first
+        super().__post_init__()
+        # Initialize _dimension to None
+        object.__setattr__(self, "_dimension", None)
+
+    @property
+    def dimension(self) -> Optional["Dimension"]:
+        """Get the dimension that owns this attribute."""
+        return self._dimension
+
+    @dimension.setter
+    def dimension(self, dimension: Optional["Dimension"]) -> None:
+        """Set the dimension owner and update ref accordingly.
+
+        When a dimension is assigned, the ref is updated to include the
+        dimension name prefix (dimension.name + '.' + name).
+        When dimension is None, ref reverts to just the attribute name.
+
+        Args:
+            dimension: The dimension that owns this attribute, or None.
+        """
+        if dimension is not None:
+            # Update ref to include dimension prefix
+            object.__setattr__(self, "ref", f"{dimension.name}.{self.name}")
+        else:
+            # Revert ref to just the name
+            object.__setattr__(self, "ref", self.name)
+        object.__setattr__(self, "_dimension", dimension)
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "Attribute":
+        """Create a deep copy of this attribute.
+
+        Note: Copied attributes are disowned from their dimension.
+        The new attribute must have its dimension assigned separately.
+
+        Args:
+            memo: Memoization dict for deep copy.
+
+        Returns:
+            A new Attribute instance with copied values but no dimension.
+        """
+        # Create new instance without dimension
+        result = Attribute(
+            name=self.name,
+            label=self.label,
+            description=self.description,
+            order=self.order,
+            info=copy.deepcopy(self.info, memo),
+            format=self.format,
+            missing_value=self.missing_value,
+            expression=self.expression,
+        )
+        # Ensure ref is set correctly (without dimension prefix)
+        object.__setattr__(result, "ref", self.name)
+        memo[id(self)] = result
+        return result
+
+    def __eq__(self, other: object) -> bool:
+        """Check equality with another Attribute.
+
+        Two attributes are equal if their base properties are equal.
+        Note: dimension (owner) is not compared.
+        """
+        if not isinstance(other, Attribute):
+            return False
+        # Compare using parent class equality
+        if not super().__eq__(other):
+            return False
+        return True
+
+    def __hash__(self) -> int:
+        """Return hash based on ref for use in sets and dicts."""
+        return hash(self.ref)
+
+    def to_dict(self, create_label: bool = False) -> dict[str, Any]:
+        """Convert to a dictionary representation.
+
+        Args:
+            create_label: If True and no label is set, auto-generate from name.
+
+        Returns:
+            Dictionary with all attribute properties.
+        """
+        # Get base dict from parent
+        base_dict = super().to_dict(create_label=create_label)
 
         return base_dict
