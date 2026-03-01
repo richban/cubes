@@ -733,15 +733,22 @@ class Hierarchy:
             attributes.extend(level.attributes)
         return attributes
 
-    def to_dict(self, create_label: bool = False) -> dict[str, Any]:
+    def to_dict(
+        self, create_label: bool = False, depth: Optional[int] = None
+    ) -> dict[str, Any]:
         """Convert to a dictionary representation.
 
         Args:
             create_label: If True and no label is set, auto-generate from name.
+            depth: If specified, truncate levels to this depth.
 
         Returns:
             Dictionary with all hierarchy properties.
         """
+        levels = [str(level) for level in self.levels]
+        if depth:
+            levels = levels[:depth]
+
         return {
             "name": self.name,
             "label": self.label
@@ -749,9 +756,7 @@ class Hierarchy:
             else (to_label(self.name) if create_label else None),
             "description": self.description,
             "info": dict(self.info),
-            "levels": [
-                level.to_dict(create_label=create_label) for level in self.levels
-            ],
+            "levels": levels,
         }
 
     @classmethod
@@ -777,12 +782,14 @@ class Hierarchy:
                 # Convert dict to LevelSchema then to Level
                 level_schema = LevelSchema.model_validate(level_input)
                 levels.append(Level.from_schema(level_schema))
-            else:
-                # String - this shouldn't happen in normal flow as
-                # schema validation converts strings to LevelSchema
-                raise ModelError(
-                    f"Cannot create hierarchy from string level: {level_input}"
+            elif isinstance(level_input, str):
+                # String level name - create simple level with that name
+                # This will be resolved to actual level object by Dimension.from_schema
+                levels.append(
+                    Level(name=level_input, attributes=[Attribute(name=level_input)])
                 )
+            else:
+                raise ModelError(f"Cannot create hierarchy from level: {level_input}")
 
         return cls(
             name=schema.name,
@@ -793,12 +800,729 @@ class Hierarchy:
         )
 
 
-# Dimension stub for forward references from attributes module
+# Default level roles for time dimensions
+_DEFAULT_LEVEL_ROLES: dict[str, tuple[str, ...]] = {
+    "time": (
+        "year",
+        "quarter",
+        "month",
+        "day",
+        "hour",
+        "minute",
+        "second",
+        "week",
+        "weeknum",
+        "dow",
+        "isoyear",
+        "isoweek",
+        "isoweekday",
+    )
+}
+
+
 @dataclass
 class Dimension:
-    """Placeholder Dimension class for forward references.
+    """Cube dimension representing a business entity like date, product, etc.
 
-    This stub is replaced by the full implementation in US-016/US-017.
+    Dimensions contain levels and hierarchies that define how data can be
+    analyzed and drilled into. Each dimension owns its levels and their
+    attributes, allowing for proper scoping and referencing.
+
+    Attributes:
+        name: Dimension name, used as identifier.
+        levels: List of Level objects defining granularity levels.
+        hierarchies: List of Hierarchy objects defining drill-down paths.
+        default_hierarchy_name: Name of the default hierarchy to use.
+        label: Human-readable label (optional, auto-generated if not provided).
+        description: Longer description of the dimension (optional).
+        info: Custom information dictionary (defaults to empty dict).
+        role: Special dimension role, e.g., "time" for time dimensions.
+        cardinality: Approximate member count (tiny, low, medium, high).
+        category: Logical dimension group for UI organization.
+        nonadditive: Non-additivity type (None, 'all', or 'time').
+        master: Original dimension this was cloned from (optional).
+
+    Example:
+        >>> dim = Dimension(
+        ...     name="date",
+        ...     levels=[
+        ...         Level(name="year", attributes=[Attribute(name="year")]),
+        ...         Level(name="month", attributes=[Attribute(name="month")]),
+        ...     ]
+        ... )
+        >>> dim.is_flat
+        False
+        >>> len(dim.levels)
+        2
     """
 
     name: str
+    levels: list[Level]
+    hierarchies: Optional[list[Hierarchy]] = None
+    default_hierarchy_name: Optional[str] = None
+    label: Optional[str] = None
+    description: Optional[str] = None
+    info: dict[str, Any] = field(default_factory=dict)
+    role: Optional[str] = None
+    cardinality: Optional[Literal["tiny", "low", "medium", "high"]] = None
+    category: Optional[str] = None
+    nonadditive: Optional[Literal["all", "time"]] = None
+    master: Optional["Dimension"] = None
+
+    # Internal dictionaries for fast lookups (initialized in __post_init__)
+    _level_dict: dict[str, Level] = field(default_factory=dict, init=False, repr=False)
+    _hierarchy_dict: dict[str, Hierarchy] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _attributes: dict[str, Attribute] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _attributes_by_ref: dict[str, Attribute] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _default_hierarchy: Optional[Hierarchy] = field(
+        default=None, init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        """Initialize computed fields and build lookup dictionaries.
+
+        This method:
+        1. Validates that levels list is not empty
+        2. Builds level and hierarchy dictionaries
+        3. Sets default level roles for time dimensions
+        4. Collects all attributes and builds lookup maps
+        5. Assigns dimension ownership to all level attributes
+        6. Validates and sets the default hierarchy
+        """
+        if not self.levels:
+            raise ModelError(f"Dimension '{self.name}' must have at least one level")
+
+        # Build levels dictionary
+        object.__setattr__(self, "_levels", {})
+        for level in self.levels:
+            if level.name in self._level_dict:
+                raise ModelError(
+                    f"Duplicate level '{level.name}' in dimension '{self.name}'"
+                )
+            self._level_dict[level.name] = level
+
+        # Set default level roles for time dimensions
+        if self.role is not None:
+            default_roles = _DEFAULT_LEVEL_ROLES.get(self.role)
+            if default_roles:
+                for level in self._level_dict.values():
+                    if level.name in default_roles:
+                        object.__setattr__(level, "role", level.name)
+
+        # Collect all attributes and build lookup maps
+        object.__setattr__(self, "_attributes", {})
+        object.__setattr__(self, "_attributes_by_ref", {})
+
+        for level in self.levels:
+            for attr in level.attributes:
+                # Check if attribute is owned by another dimension
+                if attr.dimension is not None and attr.dimension is not self:
+                    raise ModelError(
+                        f"Dimension '{self.name}' cannot claim attribute "
+                        f"'{attr.name}' because it is owned by another "
+                        f"dimension '{attr.dimension.name}'."
+                    )
+                # Assign dimension ownership
+                attr.dimension = self
+                self._attributes[attr.name] = attr
+                self._attributes_by_ref[attr.ref] = attr
+
+        # Build hierarchies
+        object.__setattr__(self, "_hierarchy_dict", {})
+
+        if self.hierarchies:
+            for hier in self.hierarchies:
+                if hier.name in self._hierarchy_dict:
+                    raise ModelError(
+                        f"Duplicate hierarchy '{hier.name}' in dimension '{self.name}'"
+                    )
+                self._hierarchy_dict[hier.name] = hier
+        else:
+            # Create default hierarchy from all levels
+            default_hier = Hierarchy(name="default", levels=self.levels)
+            self._hierarchy_dict["default"] = default_hier
+            object.__setattr__(self, "hierarchies", [default_hier])
+
+        # Filter levels to only those used in hierarchies
+        used_level_names: set[str] = set()
+        for hier in self._hierarchy_dict.values():
+            for level in hier.levels:
+                used_level_names.add(level.name)
+
+        # Rebuild _level_dict with only used levels
+        filtered_levels = {
+            name: level
+            for name, level in self._level_dict.items()
+            if name in used_level_names
+        }
+        object.__setattr__(self, "_level_dict", filtered_levels)
+
+        # Also update the levels field to match
+        object.__setattr__(self, "levels", list(filtered_levels.values()))
+
+        # Normalize nonadditive
+        if self.nonadditive is not None:
+            normalized = self.nonadditive.lower()
+            if normalized == "none":
+                object.__setattr__(self, "nonadditive", None)
+            elif normalized in ("all", "any"):
+                object.__setattr__(self, "nonadditive", "all")
+            elif normalized == "time":
+                object.__setattr__(self, "nonadditive", "time")
+            else:
+                raise ModelError(
+                    f"Dimension '{self.name}' has unknown non-additive type "
+                    f"'{self.nonadditive}'. Must be 'none', 'all', 'any', or 'time'."
+                )
+
+        # Validate and set default hierarchy
+        default_name = self.default_hierarchy_name or "default"
+        if default_name in self._hierarchy_dict:
+            object.__setattr__(
+                self, "_default_hierarchy", self._hierarchy_dict[default_name]
+            )
+            object.__setattr__(self, "default_hierarchy_name", default_name)
+        elif self._hierarchy_dict:
+            # Use first hierarchy if default not found
+            first_hier = list(self._hierarchy_dict.values())[0]
+            object.__setattr__(self, "_default_hierarchy", first_hier)
+            object.__setattr__(self, "default_hierarchy_name", first_hier.name)
+
+    def __eq__(self, other: object) -> bool:
+        """Check equality with another Dimension.
+
+        Two dimensions are equal if they have the same name, role, label,
+        description, cardinality, category, default_hierarchy_name, levels,
+        and hierarchies.
+
+        Args:
+            other: Another object to compare with.
+
+        Returns:
+            True if equal, False otherwise.
+        """
+        if other is None or not isinstance(other, Dimension):
+            return False
+
+        return (
+            self.name == other.name
+            and self.role == other.role
+            and self.label == other.label
+            and self.description == other.description
+            and self.cardinality == other.cardinality
+            and self.category == other.category
+            and self.default_hierarchy_name == other.default_hierarchy_name
+            and self._level_dict == other._level_dict
+            and self._hierarchy_dict == other._hierarchy_dict
+        )
+
+    def __hash__(self) -> int:
+        """Return hash based on name for use in sets and dicts."""
+        return hash(self.name)
+
+    def __str__(self) -> str:
+        """Return string representation (name)."""
+        return self.name
+
+    def __repr__(self) -> str:
+        """Return detailed representation."""
+        return f"<dimension: {{name: '{self.name}', levels: {list(self._level_dict.keys())}}}>"
+
+    @property
+    def level_names(self) -> list[str]:
+        """Get list of level names.
+
+        Order is not guaranteed; use a hierarchy for known ordering.
+
+        Returns:
+            List of level name strings.
+        """
+        return list(self._level_dict.keys())
+
+    @property
+    def is_flat(self) -> bool:
+        """Check if dimension has only one level.
+
+        Returns:
+            True if dimension has only one level, False otherwise.
+        """
+        if self.master:
+            return self.master.is_flat
+        return len(self._level_dict) == 1
+
+    @property
+    def has_details(self) -> bool:
+        """Check if any level has more than one attribute.
+
+        Returns:
+            True if any level has details (multiple attributes).
+        """
+        if self.master:
+            return self.master.has_details
+        return any(level.has_details for level in self._level_dict.values())
+
+    @property
+    def key_attributes(self) -> list[Attribute]:
+        """Return all dimension key attributes.
+
+        Order is not guaranteed; use a hierarchy for known ordering.
+
+        Returns:
+            List of key Attribute objects from all levels.
+        """
+        # After Level.__post_init__, key is always an Attribute
+        return [level.key for level in self._level_dict.values()]  # type: ignore[misc]
+
+    @property
+    def attributes(self) -> list[Attribute]:
+        """Return all dimension attributes.
+
+        Order is not guaranteed; use a hierarchy for known ordering.
+        Order of attributes within level is preserved.
+
+        Returns:
+            List of all Attribute objects.
+        """
+        return list(self._attributes.values())
+
+    def level(self, obj: Union[str, Level]) -> Level:
+        """Get level by name or as Level object.
+
+        This method coalesces values, accepting either a level name string
+        or a Level object.
+
+        Args:
+            obj: Level name (string) or Level object.
+
+        Returns:
+            The Level object.
+
+        Raises:
+            KeyError: If level name is not found.
+            ValueError: If obj is neither string nor Level.
+        """
+        if isinstance(obj, str):
+            if obj not in self._level_dict:
+                raise KeyError(f"No level {obj} in dimension {self.name}")
+            return self._level_dict[obj]
+        elif isinstance(obj, Level):
+            return obj
+        else:
+            raise ValueError(
+                f"Unknown level object {obj} (should be a string or Level)"
+            )
+
+    def hierarchy(self, obj: Optional[Union[str, Hierarchy]] = None) -> Hierarchy:
+        """Get hierarchy by name or as Hierarchy object.
+
+        If obj is None, returns the default hierarchy.
+
+        Args:
+            obj: Hierarchy name (string), Hierarchy object, or None for default.
+
+        Returns:
+            The Hierarchy object.
+
+        Raises:
+            ModelError: If hierarchy name is not found.
+            ValueError: If obj is neither string, Hierarchy, nor None.
+        """
+        if obj is None:
+            if self._default_hierarchy is None:
+                raise ModelError(
+                    f"No default hierarchy set for dimension '{self.name}'"
+                )
+            return self._default_hierarchy
+        if isinstance(obj, str):
+            if obj not in self._hierarchy_dict:
+                raise ModelError(f"No hierarchy {obj} in dimension {self.name}")
+            return self._hierarchy_dict[obj]
+        elif isinstance(obj, Hierarchy):
+            return obj
+        else:
+            raise ValueError(
+                f"Unknown hierarchy object {obj} (should be a string or Hierarchy)"
+            )
+
+    def attribute(self, name: str, by_ref: bool = False) -> Attribute:
+        """Get dimension attribute.
+
+        Args:
+            name: Attribute name (default) or attribute reference if by_ref=True.
+            by_ref: If True, look up by attribute reference (e.g., "dim.attr").
+
+        Returns:
+            The Attribute object.
+
+        Raises:
+            KeyError: If attribute is not found.
+        """
+        if by_ref:
+            if name not in self._attributes_by_ref:
+                raise KeyError(f"Unknown attribute '{name}' in dimension '{self.name}'")
+            return self._attributes_by_ref[name]
+        else:
+            if name not in self._attributes:
+                raise KeyError(f"Unknown attribute '{name}' in dimension '{self.name}'")
+            return self._attributes[name]
+
+    def clone(
+        self,
+        hierarchies: Optional[list[str]] = None,
+        exclude_hierarchies: Optional[list[str]] = None,
+        nonadditive: Optional[str] = None,
+        default_hierarchy_name: Optional[str] = None,
+        cardinality: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> "Dimension":
+        """Create a clone of this dimension with modifications.
+
+        The clone has this dimension set as its master. Level attributes
+        are unowned (dimension set to None) in the clone.
+
+        Args:
+            hierarchies: Limit to only these hierarchy names. If empty list,
+                raises error.
+            exclude_hierarchies: Exclude these hierarchy names.
+            nonadditive: Override nonadditive value.
+            default_hierarchy_name: Override default hierarchy name.
+            cardinality: Override cardinality.
+            alias: New name for the cloned dimension.
+
+        Returns:
+            A new Dimension instance.
+
+        Raises:
+            ModelError: If trying to remove all hierarchies.
+        """
+        if hierarchies == []:
+            raise ModelError(
+                f"Cannot remove all hierarchies from dimension '{self.name}'"
+            )
+
+        # Determine which hierarchies to include
+        if hierarchies:
+            linked = [self.hierarchy(name) for name in hierarchies]
+        elif exclude_hierarchies:
+            linked = [
+                hier
+                for hier in self._hierarchy_dict.values()
+                if hier.name not in exclude_hierarchies
+            ]
+        else:
+            linked = list(self._hierarchy_dict.values())
+
+        if not linked:
+            raise ModelError(f"No hierarchies to clone in dimension '{self.name}'")
+
+        # Deep copy hierarchies
+        copied_hierarchies = [copy.deepcopy(hier) for hier in linked]
+
+        # Get only levels used in the hierarchies
+        levels: list[Level] = []
+        seen: set[str] = set()
+        for hier in copied_hierarchies:
+            for level in hier.levels:
+                if level.name not in seen:
+                    levels.append(level)
+                    seen.add(level.name)
+
+        # Unown level attributes (deepcopy already disowns them)
+        # No additional work needed as deepcopy handles this
+
+        # Determine default hierarchy name
+        if not default_hierarchy_name:
+            if any(
+                hier.name == self.default_hierarchy_name for hier in copied_hierarchies
+            ):
+                default_hierarchy_name = self.default_hierarchy_name
+            else:
+                default_hierarchy_name = copied_hierarchies[0].name
+
+        # Determine new name
+        new_name = alias or self.name
+
+        return Dimension(
+            name=new_name,
+            levels=levels,
+            hierarchies=copied_hierarchies,
+            default_hierarchy_name=default_hierarchy_name,
+            label=self.label,
+            description=self.description,
+            info=copy.deepcopy(self.info),
+            role=self.role,
+            cardinality=cardinality or self.cardinality,  # type: ignore[arg-type]
+            category=self.category,
+            master=self,
+            nonadditive=nonadditive or self.nonadditive,  # type: ignore[arg-type]
+        )
+
+    def to_dict(
+        self,
+        create_label: bool = False,
+        hierarchy_limits: Optional[dict[str, Optional[str]]] = None,
+    ) -> dict[str, Any]:
+        """Convert to a dictionary representation.
+
+        Args:
+            create_label: If True and no label is set, auto-generate from name.
+            hierarchy_limits: Dict mapping hierarchy names to level names.
+                If level is None, the hierarchy is excluded. Otherwise,
+                the hierarchy is truncated at that level.
+
+        Returns:
+            Dictionary with all dimension properties.
+        """
+        result: dict[str, Any] = {
+            "name": self.name,
+            "label": self.label
+            if self.label
+            else (to_label(self.name) if create_label else None),
+            "description": self.description,
+            "info": dict(self.info),
+            "default_hierarchy_name": self.hierarchy().name,
+            "role": self.role,
+            "cardinality": self.cardinality,
+            "category": self.category,
+        }
+
+        # Add levels
+        result["levels"] = [
+            level.to_dict(create_label=create_label) for level in self.levels
+        ]
+
+        # Add hierarchies with optional depth restrictions
+        hierarchy_limits = hierarchy_limits or {}
+        hierarchies_out: list[dict[str, Any]] = []
+
+        for name, hier in self._hierarchy_dict.items():
+            if name in hierarchy_limits:
+                level_limit = hierarchy_limits[name]
+                if level_limit is None:
+                    # Skip this hierarchy entirely
+                    continue
+                # Truncate hierarchy at specified level
+                depth = hier.level_index(level_limit) + 1
+                hier_dict = hier.to_dict(create_label=create_label)
+                hier_dict["levels"] = hier_dict["levels"][:depth]
+                hierarchies_out.append(hier_dict)
+            else:
+                hierarchies_out.append(hier.to_dict(create_label=create_label))
+
+        result["hierarchies"] = hierarchies_out
+
+        # Add derived properties for convenience (read-only)
+        result["is_flat"] = self.is_flat
+        result["has_details"] = self.has_details
+
+        return result
+
+    @classmethod
+    def from_schema(
+        cls, schema: Any, templates: Optional[dict[str, "Dimension"]] = None
+    ) -> "Dimension":
+        """Create a Dimension instance from a validated DimensionSchema.
+
+        This factory method handles template inheritance and creates a
+        fully resolved Dimension from a Pydantic schema.
+
+        Args:
+            schema: A validated DimensionSchema instance.
+            templates: Optional dict of template dimensions by name.
+
+        Returns:
+            A new Dimension instance.
+
+        Raises:
+            ModelError: If template is specified but not found.
+        """
+        from cubes.metadata.schemas.dimension import (
+            DimensionSchema,
+            HierarchySchema,
+            LevelSchema,
+        )
+
+        templates = templates or {}
+        template: Optional["Dimension"] = None
+
+        # Handle template inheritance
+        if hasattr(schema, "template") and schema.template:
+            template_name = schema.template
+            if template_name not in templates:
+                raise ModelError(f"Template dimension '{template_name}' not found")
+            template = templates[template_name]
+
+            # Deep copy template's levels
+            levels = [copy.deepcopy(level) for level in template.levels]
+
+            # Create copy of template's hierarchies with references to new levels
+            hierarchies: list[Hierarchy] = []
+            level_dict = {level.name: level for level in levels}
+
+            for hier in template._hierarchy_dict.values():
+                hier_levels = [level_dict[level.name] for level in hier.levels]
+                hier_copy = Hierarchy(
+                    name=hier.name,
+                    levels=hier_levels,
+                    label=hier.label,
+                    info=copy.deepcopy(hier.info),
+                    description=hier.description,
+                )
+                hierarchies.append(hier_copy)
+
+            # Inherit other properties from template
+            default_hierarchy_name = template.default_hierarchy_name
+            label = template.label
+            description = template.description
+            info = dict(template.info)
+            cardinality = template.cardinality
+            role = template.role
+            category = template.category
+            nonadditive = template.nonadditive
+        else:
+            levels = []
+            hierarchies = []
+            default_hierarchy_name = None
+            label = None
+            description = None
+            info = {}
+            cardinality = None
+            role = None
+            category = None
+            nonadditive = None
+
+        # Override with schema values
+        if hasattr(schema, "name"):
+            name = schema.name
+        else:
+            name = schema.get("name", "")
+
+        label = getattr(schema, "label", None) or label
+        description = getattr(schema, "description", None) or description
+        info = {**info, **getattr(schema, "info", {})}
+        role = getattr(schema, "role", None) or role
+        category = getattr(schema, "category", None) or category
+        cardinality = getattr(schema, "cardinality", None) or cardinality
+        nonadditive = getattr(schema, "nonadditive", None) or nonadditive
+
+        # Process levels from schema
+        if hasattr(schema, "levels") and schema.levels:
+            # If explicit levels are provided, they replace template levels
+            schema_levels: list[Level] = []
+            for level_input in schema.levels:
+                if isinstance(level_input, str):
+                    # Level name reference - inherit from template
+                    if (
+                        not templates
+                        or not hasattr(schema, "template")
+                        or not schema.template
+                        or template is None
+                    ):
+                        raise ModelError(
+                            f"Cannot specify level name '{level_input}' without template"
+                        )
+                    level = template.level(level_input)
+                    schema_levels.append(copy.deepcopy(level))
+                elif isinstance(level_input, LevelSchema):
+                    # Create from LevelSchema
+                    level = Level.from_schema(level_input)
+                    # Merge with template level info if available
+                    if hasattr(schema, "template") and schema.template and template:
+                        try:
+                            template_level = template.level(level.name)
+                            merged_info = copy.deepcopy(template_level.info)
+                            merged_info.update(level.info)
+                            object.__setattr__(level, "info", merged_info)
+                        except KeyError:
+                            pass
+                    schema_levels.append(level)
+                elif isinstance(level_input, dict):
+                    # Create from dict
+                    level_schema = LevelSchema.model_validate(level_input)
+                    level = Level.from_schema(level_schema)
+                    schema_levels.append(level)
+            # Replace template levels with schema levels
+            levels = schema_levels
+
+        # Process hierarchies from schema
+        if hasattr(schema, "hierarchies") and schema.hierarchies:
+            new_hierarchies: list[Hierarchy] = []
+            for hier_input in schema.hierarchies:
+                if isinstance(hier_input, str):
+                    # Hierarchy name reference - inherit from template
+                    if (
+                        not hasattr(schema, "template")
+                        or not schema.template
+                        or template is None
+                    ):
+                        raise ModelError(
+                            f"Cannot specify hierarchy name '{hier_input}' without template"
+                        )
+                    hier = template.hierarchy(hier_input)
+                    new_hierarchies.append(copy.deepcopy(hier))
+                elif isinstance(hier_input, HierarchySchema):
+                    # Create from HierarchySchema
+                    hier = Hierarchy.from_schema(hier_input)
+                    # Resolve level references to actual level objects
+                    resolved_levels: list[Level] = []
+                    level_dict = {level.name: level for level in levels}
+                    for level in hier.levels:
+                        if level.name in level_dict:
+                            resolved_levels.append(level_dict[level.name])
+                        else:
+                            raise ModelError(
+                                f"Hierarchy '{hier.name}' references unknown level "
+                                f"'{level.name}'"
+                            )
+                    object.__setattr__(hier, "levels", resolved_levels)
+                    new_hierarchies.append(hier)
+                elif isinstance(hier_input, dict):
+                    # Create from dict
+                    hier_schema = HierarchySchema.model_validate(hier_input)
+                    hier = Hierarchy.from_schema(hier_schema)
+                    # Resolve level references
+                    resolved_levels = []
+                    level_dict = {level.name: level for level in levels}
+                    for level in hier.levels:
+                        if level.name in level_dict:
+                            resolved_levels.append(level_dict[level.name])
+                        else:
+                            raise ModelError(
+                                f"Hierarchy '{hier.name}' references unknown level "
+                                f"'{level.name}'"
+                            )
+                    object.__setattr__(hier, "levels", resolved_levels)
+                    new_hierarchies.append(hier)
+            hierarchies = new_hierarchies
+        else:
+            # Filter hierarchies to only those using local levels
+            level_names = {level.name for level in levels}
+            hierarchies = [
+                hier
+                for hier in hierarchies
+                if all(level.name in level_names for level in hier.levels)
+            ]
+
+        # Override default hierarchy name from schema
+        if hasattr(schema, "default_hierarchy_name") and schema.default_hierarchy_name:
+            default_hierarchy_name = schema.default_hierarchy_name
+
+        return cls(
+            name=name,
+            levels=levels,
+            hierarchies=hierarchies if hierarchies else None,
+            default_hierarchy_name=default_hierarchy_name,
+            label=label,
+            description=description,
+            info=info,
+            role=role,
+            cardinality=cardinality,
+            category=category,
+            nonadditive=nonadditive,
+        )

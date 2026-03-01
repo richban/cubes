@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from cubes.metadata.models.attributes import Attribute, AttributeBase
-from cubes.metadata.models.dimension import Dimension
+from cubes.metadata.models.dimension import Dimension, Level
 
 
 class TestAttributeBasics:
@@ -72,7 +72,7 @@ class TestAttributeDimensionOwnership:
     def test_attribute_with_dimension(self) -> None:
         """Attribute with dimension has prefixed ref."""
         attr = Attribute(name="name")
-        dim = Dimension(name="customer")
+        dim = Dimension(name="customer", levels=[Level(name="customer", attributes=[Attribute(name="id")])])
         attr.dimension = dim
         assert attr.ref == "customer.name"
         assert attr.dimension == dim
@@ -82,14 +82,14 @@ class TestAttributeDimensionOwnership:
         attr = Attribute(name="id")
         assert attr.ref == "id"
 
-        dim = Dimension(name="product")
+        dim = Dimension(name="product", levels=[Level(name="product", attributes=[Attribute(name="id")])])
         attr.dimension = dim
         assert attr.ref == "product.id"
 
     def test_attribute_dimension_removal_clears_ref(self) -> None:
         """Removing dimension reverts ref to simple name."""
         attr = Attribute(name="id")
-        dim = Dimension(name="product")
+        dim = Dimension(name="product", levels=[Level(name="product", attributes=[Attribute(name="id")])])
         attr.dimension = dim
         assert attr.ref == "product.id"
 
@@ -100,8 +100,8 @@ class TestAttributeDimensionOwnership:
     def test_attribute_dimension_reassignment(self) -> None:
         """Reassigning dimension updates ref to new dimension."""
         attr = Attribute(name="id")
-        dim1 = Dimension(name="product")
-        dim2 = Dimension(name="category")
+        dim1 = Dimension(name="product", levels=[Level(name="product", attributes=[Attribute(name="id")])])
+        dim2 = Dimension(name="category", levels=[Level(name="category", attributes=[Attribute(name="id")])])
 
         attr.dimension = dim1
         assert attr.ref == "product.id"
@@ -116,7 +116,7 @@ class TestAttributeDeepCopy:
     def test_deepcopy_disowns_dimension(self) -> None:
         """Deep copy disowns attribute from dimension."""
         attr = Attribute(name="id")
-        dim = Dimension(name="product")
+        dim = Dimension(name="product", levels=[Level(name="product", attributes=[Attribute(name="id")])])
         attr.dimension = dim
         assert attr.ref == "product.id"
 
@@ -224,7 +224,7 @@ class TestAttributeEquality:
         attr1 = Attribute(name="id")
         attr2 = Attribute(name="id")
 
-        dim = Dimension(name="product")
+        dim = Dimension(name="product", levels=[Level(name="product", attributes=[Attribute(name="id")])])
         attr1.dimension = dim
 
         # Should still be equal despite different dimension ownership
@@ -235,7 +235,7 @@ class TestAttributeEquality:
         attr = Attribute(name="foo")
         assert hash(attr) == hash("foo")
 
-        dim = Dimension(name="bar")
+        dim = Dimension(name="bar", levels=[Level(name="bar", attributes=[Attribute(name="id")])])
         attr.dimension = dim
         assert hash(attr) == hash("bar.foo")
 
@@ -295,7 +295,7 @@ class TestAttributeStringRepresentation:
         attr = Attribute(name="foo")
         assert str(attr) == "foo"
 
-        attr.dimension = Dimension(name="bar")
+        attr.dimension = Dimension(name="bar", levels=[Level(name="bar", attributes=[Attribute(name="id")])])
         assert str(attr) == "bar.foo"
 
     def test_repr_contains_class_name(self) -> None:
@@ -369,7 +369,7 @@ class TestAttributeWithRealDimension:
 
     def test_multiple_attributes_same_dimension(self) -> None:
         """Multiple attributes can belong to same dimension."""
-        dim = Dimension(name="customer")
+        dim = Dimension(name="customer", levels=[Level(name="customer", attributes=[Attribute(name="id")])])
 
         attr1 = Attribute(name="id")
         attr2 = Attribute(name="name")
@@ -385,8 +385,8 @@ class TestAttributeWithRealDimension:
         """Same attribute can be assigned to different dimensions."""
         attr = Attribute(name="id")
 
-        dim1 = Dimension(name="customer")
-        dim2 = Dimension(name="product")
+        dim1 = Dimension(name="customer", levels=[Level(name="customer", attributes=[Attribute(name="id")])])
+        dim2 = Dimension(name="product", levels=[Level(name="product", attributes=[Attribute(name="id")])])
 
         attr.dimension = dim1
         assert attr.ref == "customer.id"
@@ -396,7 +396,7 @@ class TestAttributeWithRealDimension:
 
     def test_attribute_refs_in_set(self) -> None:
         """Attributes with different refs can coexist in set."""
-        dim = Dimension(name="customer")
+        dim = Dimension(name="customer", levels=[Level(name="customer", attributes=[Attribute(name="id")])])
 
         attr1 = Attribute(name="id")
         attr2 = Attribute(name="name")
