@@ -18,6 +18,7 @@ from cubes.metadata.models.base import (
     object_dict,
     string_to_dimension_level,
 )
+from cubes.metadata.models.cube import Cube
 from cubes.metadata.models.dimension import Dimension, Hierarchy, HierarchyError, Level
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "AttributeBase",
     "collect_attributes",
     "collect_dependencies",
+    "Cube",
     "depsort_attributes",
     "Dimension",
     "ExpressionError",

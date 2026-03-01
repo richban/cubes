@@ -595,6 +595,52 @@ Session: [Not shared]
 - Test edge cases thoroughly: trailing @, trailing :, double @, spaces, special chars
 ---
 
+## Sun Mar 02 2026 16:30:00 CET - US-020
+Session: [Not shared]
+- Implemented Cube domain dataclass in src/cubes/metadata/models/cube.py
+- Created comprehensive tests in src/tests/metadata/test_cube.py (78 test cases)
+- All acceptance criteria met:
+  - Cube dataclass with all properties: name, measures, aggregates, details, dimensions, mappings, joins, fact, key, browser_options, store, store_name, dimension_links, label, description, info, category, basename
+  - __post_init__ validates types and builds lookup dictionaries (_measures, _aggregates, _dimensions)
+  - Property getters: measures_list, aggregates_list, dimensions_list, all_dimension_keys
+  - Lookup methods: measure(), get_measures(), aggregate(), get_aggregates(), aggregates_for_measure(), dimension()
+  - Attribute collection properties: all_attributes, base_attributes, all_fact_attributes, attribute_dependencies, all_aggregate_attributes
+  - attribute() lookup across dimensions, details, and measures
+  - get_attributes() with aggregated flag and name/object support
+  - collect_dependencies() for topological sorting
+  - link_dimension() with cloning support for hierarchies/nonadditive/cardinality/alias
+  - _add_dimension() internal method with validation
+  - distilled_hierarchies property returning {(dim_name, hier_name): [level_keys]}
+  - to_dict() with expand_dimensions, hierarchy_limits, and with_mappings options
+  - from_schema() factory method for creating cubes from CubeSchema
+  - All 78 tests pass including legacy test porting
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/models/cube.py (new, 845 lines)
+- src/cubes/metadata/models/__init__.py (added Cube to exports)
+- src/tests/metadata/test_cube.py (new, 78 comprehensive tests)
+- ralph/prd.json (updated US-020 passes: true)
+- ralph/progress.txt (this entry)
+
+**Learnings for future iterations:**
+- Nonadditive normalization: The schema accepts "none" but the domain model normalizes it to Python None
+  - Use a helper function _normalize_nonadditive() to handle the conversion
+- Dimension.hierarchies is typed as Optional but __post_init__ guarantees it's set
+  - Use defensive check `dim.hierarchies or []` or assert for type checker
+- List type covariance issue with Union types:
+  - `list[str]` is not assignable to `list[Union[str, AttributeBase]]` due to invariance
+  - Use intermediate variable with explicit type or cast
+- Collect dependencies returns list[str] (refs) which need to be converted back to objects
+  - Use get_attributes() to resolve refs to objects
+- Store can be string or object - handle both in __post_init__:
+  - String -> store_name = value, store = None
+  - Object -> store = value, store_name = None
+- Dimension linking with clone() supports: hierarchies, exclude_hierarchies, nonadditive, cardinality, default_hierarchy_name, alias
+  - Alias creates dimension clone with new name
+  - Hierarchies filter limits which hierarchies are included
+---
+
 ## Sun Mar 02 2026 14:00:00 CET - US-019
 Session: [Not shared]
 - Implemented Cube Pydantic Schema in src/cubes/metadata/schemas/cube.py
