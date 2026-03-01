@@ -119,3 +119,33 @@ Session: [Not shared]
 - Annotated types with BeforeValidator are for field type hints, not direct validation
 - Always import from typing_extensions for Annotated in older Python versions
 ---
+
+## Sun Mar 01 2026 15:00:00 CET - US-005
+Session: [Not shared]
+- Implemented AttributeBase domain dataclass in src/cubes/metadata/models/attributes.py
+- Created comprehensive tests in src/tests/metadata/test_attribute_base.py (47 test cases)
+- Implemented custom inspect_variables() function since expressions package incompatible with Python 3.11
+- All acceptance criteria met:
+  - AttributeBase dataclass with all properties: name, label, description, order, info, format, missing_value, expression, ref
+  - __eq__, __hash__ based on all relevant attributes (not just ref, for full equality)
+  - to_dict() with proper inheritance from ModelObject
+  - dependencies property parsing expressions to extract variable names
+  - is_base property checking if attribute has no expression
+  - Order normalization (ASC/asc -> asc) with validation
+  - All 47 tests pass
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/models/attributes.py (new)
+- src/tests/metadata/test_attribute_base.py (new, 47 tests)
+- src/cubes/metadata/models/__init__.py (updated exports)
+
+**Learnings for future iterations:**
+- The expressions package (grako dependency) is incompatible with Python 3.11+ due to `collections.Mapping` import
+- Implemented custom inspect_variables() using regex to extract identifiers from arithmetic expressions
+- AttributeBase uses __post_init__ for computed fields and order normalization
+- Equality compares all relevant attributes (name, label, description, info, format, expression, missing_value)
+- Hash is based on ref since that's what identifies the attribute in sets/dicts
+- ref defaults to name and will be updated when dimension is assigned (future US-006)
+- inspect_variables handles Python keywords, dotted attribute access, and various whitespace patterns
+---
