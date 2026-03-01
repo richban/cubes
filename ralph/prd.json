@@ -1,0 +1,435 @@
+{
+  "project": "Cubes Metadata Greenfield Rebuild",
+  "branchName": "ralph/cubes-metadata-greenfield",
+  "description": "Rebuild cubes.metadata module from scratch using modern Python with Pydantic v2 for input parsing and standard dataclasses for domain logic. Complete architectural migration with zero backward compatibility constraints.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create ModelObject Domain Dataclass",
+      "description": "As a developer, I want a clean base dataclass for all model objects so that common properties (name, label, description, info) are standardized and type-safe.",
+      "acceptanceCriteria": [
+        "Create src/cubes/metadata/models/base.py with @dataclass ModelObject",
+        "Properties: name: str, label: Optional[str], description: Optional[str], info: dict (default {})",
+        "Implement to_dict() method with optional create_label parameter",
+        "Port all ModelObject initialization tests from legacy",
+        "Typecheck passes with mypy --strict"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create Metadata I/O Utilities",
+      "description": "As a developer, I want utility functions for reading/writing model metadata bundles so that I can load multi-file models and directory structures.",
+      "acceptanceCriteria": [
+        "Implement read_model_metadata() supporting file paths, URLs, dicts, and directories",
+        "Implement read_model_metadata_bundle() for model.cubesmodel/ directories",
+        "Implement write_model_metadata_bundle() for exporting models",
+        "Support dim_*.json and cube_*.json file patterns",
+        "Use pathlib instead of os.path",
+        "Port legacy I/O tests with exact JSON fixtures",
+        "Handle Windows drive letter edge cases (legacy compatibility)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create Object Dictionary Utility",
+      "description": "As a developer, I want a utility to convert model object lists to keyed dictionaries so that I can enforce uniqueness and enable fast lookups.",
+      "acceptanceCriteria": [
+        "Implement object_dict() function with by_ref option",
+        "Raise ModelError on duplicate keys with descriptive message",
+        "Return dict (Python 3.7+ ordered) instead of legacy OrderedDict",
+        "Support custom error messages via error_message and error_dict parameters",
+        "Port legacy object_dict tests",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create Attribute Pydantic Schema",
+      "description": "As a developer, I want a Pydantic schema for parsing attribute definitions so that raw JSON/dict inputs are validated and coerced correctly.",
+      "acceptanceCriteria": [
+        "Create src/cubes/metadata/schemas/attributes.py",
+        "Schema fields: name: str, label: Optional[str], description: Optional[str], order: Optional[Literal[asc, desc]], info: dict, format: Optional[str], missing_value: Any, expression: Optional[str], locales: list[str]",
+        "Implement @field_validator(order) to normalize case (ASC/asc -> asc)",
+        "Implement BeforeValidator to coerce string inputs to {name: string} dicts",
+        "All legacy expand_attribute_metadata edge cases covered",
+        "JSON schema compliance with cubes/schemas/dimension.json",
+        "Comprehensive validation tests",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create AttributeBase Domain Dataclass",
+      "description": "As a developer, I want a domain dataclass for attribute base properties so that format, expression dependencies, and ordering are cleanly modeled.",
+      "acceptanceCriteria": [
+        "Create src/cubes/metadata/models/attributes.py with AttributeBase dataclass",
+        "Properties: name, label, description, order (normalized to asc/desc), info, format, missing_value, expression, ref (computed from name)",
+        "Implement __eq__, __hash__ based on ref",
+        "Implement to_dict() using dataclasses.asdict",
+        "Implement dependencies property that parses expression via inspect_variables",
+        "Implement is_base property (True if no expression)",
+        "Port legacy AttributeBase tests",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Create Attribute Domain Dataclass",
+      "description": "As a developer, I want a domain dataclass for dimension attributes.",
+      "acceptanceCriteria": [
+        "Extend AttributeBase with Attribute dataclass",
+        "Add locales: list[str] and dimension: Optional[Dimension] properties",
+        "Implement dimension property setter that updates ref to dimension.name + . + name",
+        "Ensure __deepcopy__ disowns dimension (sets to None)",
+        "Port legacy Attribute tests",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Create Measure Pydantic Schema",
+      "description": "As a developer, I want a Pydantic schema for measure definitions so that nonadditive types and aggregates are validated correctly.",
+      "acceptanceCriteria": [
+        "Extend attribute schema with measure-specific fields",
+        "Fields: formula: Optional[str], aggregates: list[str], nonadditive: Optional[Literal[none, all, time]], window_size: Optional[int]",
+        "Implement @field_validator(nonadditive) to normalize values (none->None, all/any->all)",
+        "Implement @model_validator(mode=after) for aggregate function validation",
+        "Support string coercion for simple measure names",
+        "Port legacy measure validation tests",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Create Measure Domain Dataclass",
+      "description": "As a developer, I want a domain dataclass for measures so that formulas, aggregates, and nonadditive behavior are cleanly modeled.",
+      "acceptanceCriteria": [
+        "Extend AttributeBase with Measure dataclass",
+        "Properties: formula, aggregates, nonadditive, window_size",
+        "Implement default_aggregates() method that generates MeasureAggregate objects",
+        "Handle identity aggregate magic string",
+        "Normalize nonadditive in __post_init__ (none->None, etc.)",
+        "Port legacy measure tests including aggregate generation",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Create MeasureAggregate Pydantic Schema",
+      "description": "As a developer, I want a Pydantic schema for measure aggregates so that mutual exclusivity of measure vs expression is enforced.",
+      "acceptanceCriteria": [
+        "Schema fields: name, label, function, formula, measure, expression, nonadditive, window_size",
+        "Implement @model_validator(mode=after) to enforce: cannot have both measure AND expression",
+        "Validate function names against supported aggregation functions",
+        "Support implicit aggregate generation patterns",
+        "Port legacy validation tests",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Create MeasureAggregate Domain Dataclass",
+      "description": "As a developer, I want a domain dataclass for measure aggregates so that aggregation logic and dependencies are cleanly modeled.",
+      "acceptanceCriteria": [
+        "Extend AttributeBase with MeasureAggregate dataclass",
+        "Properties: function, formula, measure, nonadditive, window_size",
+        "Implement is_base property (True if no expression AND no function)",
+        "Implement dependencies property: returns {measure} if measure set, else expression variables",
+        "Raise ModelError if both measure and expression set (defensive programming)",
+        "Port legacy MeasureAggregate tests",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Create Attribute Dependency Utilities",
+      "description": "As a developer, I want utilities for collecting and sorting attribute dependencies so that topological ordering is maintained for derived attributes.",
+      "acceptanceCriteria": [
+        "Implement collect_attributes() utility for flattening attribute lists",
+        "Implement collect_dependencies() for topological sorting",
+        "Implement depsort_attributes() with cycle detection",
+        "Raise ExpressionError on circular dependencies with descriptive message",
+        "Raise ExpressionError on unknown attribute references",
+        "Port legacy dependency sorting tests",
+        "Ensure mathematical equivalence with legacy topological sort algorithm",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create Level Pydantic Schema",
+      "description": "As a developer, I want a Pydantic schema for hierarchy levels so that key, label, and order attribute defaults are handled during parsing.",
+      "acceptanceCriteria": [
+        "Create src/cubes/metadata/schemas/dimension.py",
+        "Schema fields: name, attributes (list of Attribute schemas), key, label_attribute, order_attribute, order, cardinality, role, nonadditive, info, description",
+        "Implement @model_validator(mode=after) to set defaults: key = first attribute, label_attribute = second attribute (or first if only one), order_attribute = first attribute",
+        "Support string coercion for level names (creates single attribute)",
+        "Integrate with Attribute schema for nested validation",
+        "Port legacy level expansion tests",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Create Level Domain Dataclass",
+      "description": "As a developer, I want a domain dataclass for levels so that attribute ownership and defaults are cleanly modeled.",
+      "acceptanceCriteria": [
+        "Create src/cubes/metadata/models/dimension.py with Level dataclass",
+        "Properties: name, attributes (list), key (Attribute), label_attribute (Attribute), order_attribute (Attribute), order, cardinality, role, nonadditive, info, label, description",
+        "Implement __post_init__ to resolve attribute references to actual Attribute objects",
+        "Implement attribute(name) lookup method",
+        "Implement has_details property (True if len(attributes) > 1)",
+        "Implement to_dict() with full_attribute_names option",
+        "Port legacy Level tests including default attribute resolution",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Create Hierarchy Pydantic Schema",
+      "description": "As a developer, I want a Pydantic schema for dimension hierarchies so that level references are validated.",
+      "acceptanceCriteria": [
+        "Schema fields: name, levels (list of strings or Level schemas), label, info, description",
+        "Validate that levels list is not empty",
+        "Support level name references (strings) that resolve later",
+        "Validate hierarchy name uniqueness within dimension",
+        "Port legacy hierarchy expansion tests",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Create Hierarchy Domain Dataclass",
+      "description": "As a developer, I want a domain dataclass for hierarchies so that level ordering and traversal algorithms are cleanly implemented.",
+      "acceptanceCriteria": [
+        "Create Hierarchy dataclass with properties: name, levels (ordered list of Level objects), label, info, description",
+        "Implement __post_init__ to convert level names to Level objects if needed",
+        "Implement keys(depth) method returning level keys up to depth",
+        "Implement levels_for_path(path, drilldown=False) returning levels for a path",
+        "Implement levels_for_depth(depth, drilldown=False) with bounds checking",
+        "Implement next_level(level) returning next level or None",
+        "Implement previous_level(level) returning previous level or None",
+        "Implement level_index(level) returning positional index",
+        "Implement is_last(level) checking if level is terminal",
+        "Implement rollup(path, level=None) rolling up path to specified level",
+        "Implement path_is_base(path) checking if path reaches hierarchy bottom",
+        "Implement all_attributes property flattening all level attributes",
+        "Implement collection methods: __len__, __getitem__, __contains__",
+        "Port legacy Hierarchy traversal tests ensuring mathematical equivalence",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Create Dimension Pydantic Schema",
+      "description": "As a developer, I want a Pydantic schema for dimensions so that template inheritance and hierarchy defaults are handled during parsing.",
+      "acceptanceCriteria": [
+        "Schema fields: name, levels, hierarchies, default_hierarchy_name, label, description, info, role, cardinality, category, nonadditive, attributes (alternative to levels)",
+        "Implement @model_validator(mode=after) to enforce: cannot have BOTH levels AND attributes",
+        "Implement template resolution logic in @model_validator(mode=before) or factory",
+        "If no hierarchies, create default hierarchy from all levels",
+        "If no default_hierarchy_name, use default or first hierarchy",
+        "Support template field for dimension inheritance",
+        "Filter template hierarchies to only those using local levels",
+        "Port legacy dimension expansion tests including template inheritance",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Create Dimension Domain Dataclass",
+      "description": "As a developer, I want a domain dataclass for dimensions so that level ownership, hierarchy management, and attribute indexing are cleanly implemented.",
+      "acceptanceCriteria": [
+        "Create Dimension dataclass with properties: name, levels, hierarchies, _levels (dict), _hierarchies (dict), _attributes (dict), _attributes_by_ref (dict), default_hierarchy_name, label, description, info, role, cardinality, category, master, nonadditive",
+        "Implement __post_init__ to: Build level and hierarchy dictionaries, Set default level roles for time dimensions, Collect all attributes and build lookup maps, Assign dimension ownership to all level attributes, Validate and set default hierarchy",
+        "Implement property getters: levels, hierarchies, level_names, is_flat, has_details, key_attributes, attributes",
+        "Implement lookup methods: level(obj), hierarchy(obj=None), attribute(name, by_ref=False)",
+        "Implement clone(hierarchies=None, exclude_hierarchies=None, nonadditive=None, default_hierarchy_name=None, cardinality=None, alias=None) for dimension cloning with modifications",
+        "Clone must unown level attributes from original dimension",
+        "Implement to_dict() with hierarchy_limits support",
+        "Implement localizable_dictionary() for translations",
+        "Port legacy Dimension tests including cloning and template inheritance",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Create Drilldown String Parser",
+      "description": "As a developer, I want a utility to parse drilldown strings so that dimension/hierarchy/level specifications can be parsed from compact notation.",
+      "acceptanceCriteria": [
+        "Implement string_to_dimension_level(astring) function",
+        "Parse format: dimension@hierarchy:level (hierarchy and level optional)",
+        "Return tuple: (dimension, hierarchy, level)",
+        "Raise ArgumentError on invalid format with descriptive message",
+        "Use regex pattern: [\\w\\d_] for identifiers",
+        "Port legacy parser tests",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Create Cube Pydantic Schema",
+      "description": "As a developer, I want a Pydantic schema for cubes so that dimension links, implicit aggregates, and nonadditive propagation are handled during parsing.",
+      "acceptanceCriteria": [
+        "Create src/cubes/metadata/schemas/cube.py",
+        "Schema fields: name, dimensions (links), measures, aggregates, details, label, description, info, locale, category, mappings, joins, fact, key, browser_options, store, implicit_aggregates",
+        "Implement @model_validator(mode=after) for: Expanding dimension links from strings to dicts, Generating default fact_count aggregate if no measures/aggregates, Implicit aggregate generation from measures if implicit_aggregates=True, Propagating nonadditive from cube to measures, Assigning implicit aggregate labels using template strings",
+        "Handle mutually exclusive dimensions vs dimension_links validation",
+        "Merge model-level and cube-level mappings and joins",
+        "Port legacy cube expansion tests",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Create Cube Domain Dataclass",
+      "description": "As a developer, I want a domain dataclass for cubes so that dimension linking, attribute collection, and aggregate management are cleanly implemented.",
+      "acceptanceCriteria": [
+        "Create src/cubes/metadata/models/cube.py with Cube dataclass",
+        "Properties: name, measures, aggregates, details, dimensions, _dimensions, _measures, _aggregates, mappings, joins, fact, key, browser_options, store, store_name, dimension_links, label, description, info, locale, category, basename",
+        "Implement __post_init__ to: Validate measures and aggregates are correct types, Build lookup dictionaries, Expand dimension links, Handle store string vs object",
+        "Implement property getters: measures, aggregates, dimensions, all_dimension_keys",
+        "Implement lookup methods: measure(name), get_measures(measures), aggregate(name), get_aggregates(names), aggregates_for_measure(name), dimension(obj)",
+        "Implement attribute collection properties: all_attributes, base_attributes, all_fact_attributes, attribute_dependencies, all_aggregate_attributes",
+        "Implement attribute(attribute) lookup across dimensions, details, and measures",
+        "Implement get_attributes(attributes, aggregated=False) with simplified/full reference support",
+        "Implement collect_dependencies(attributes) for topological sorting",
+        "Implement link_dimension(dimension) with cloning support for overrides",
+        "Implement _add_dimension(dimension) internal method",
+        "Implement distilled_hierarchies property returning {(dim_name, hier_name): [level_keys]}",
+        "Implement to_dict() with expand_dimensions and hierarchy_limits options",
+        "Implement localize(trans) for applying translations",
+        "Port legacy Cube tests including dimension linking and attribute collection",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Create Dimension Link Expansion",
+      "description": "As a developer, I want utilities for expanding and validating dimension links so that cube-dimension relationships are cleanly modeled.",
+      "acceptanceCriteria": [
+        "Implement expand_dimension_links(metadata) function",
+        "Convert strings to {name: link} dicts",
+        "Support link dicts with: name, hierarchies, exclude_hierarchies, default_hierarchy_name, nonadditive, cardinality, alias",
+        "Implement expand_cube_metadata(metadata) for preprocessing cube definitions",
+        "Handle legacy hierarchies nested dict format (deprecation warning optional)",
+        "Port legacy link expansion tests",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Create Metadata Provider Base Class",
+      "description": "As a developer, I want a base class for metadata providers so that different model sources (files, APIs, databases) can be implemented consistently.",
+      "acceptanceCriteria": [
+        "Create src/cubes/metadata/provider.py with MetadataProvider base class",
+        "Methods: list_cubes(), has_cube(name), cube(name, locale=None), dimension(name, templates=None, locale=None)",
+        "Implement template resolution caching",
+        "Implement dimension lookup with cycle detection",
+        "Support locale-specific metadata retrieval",
+        "Port legacy provider tests",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Create Static Model Provider",
+      "description": "As a developer, I want a concrete provider for static JSON file models so that file-based model definitions can be loaded.",
+      "acceptanceCriteria": [
+        "Create StaticModelProvider class extending MetadataProvider",
+        "Constructor accepts metadata dictionary or file path",
+        "Implement list_cubes() returning list of cube summary dicts",
+        "Implement cube and dimension caching",
+        "Support model directory bundles",
+        "Port legacy StaticModelProvider tests",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Create Model Validation Layer",
+      "description": "As a developer, I want a validation layer replacing jsonschema so that models are validated using Pydantic's native validation.",
+      "acceptanceCriteria": [
+        "Drop dependency on jsonschema Draft4Validator",
+        "Implement validation through Pydantic Model.model_validate()",
+        "Convert legacy validation error messages to Pydantic-compatible format",
+        "Support all validation rules from legacy defaults.py: Mutually exclusive levels vs attributes, Required master and detail in joins, Duplicate dimension/cube name detection, Default hierarchy inference",
+        "Port legacy validation tests ensuring equivalent error detection",
+        "Typecheck passes"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
