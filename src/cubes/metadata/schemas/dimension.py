@@ -336,3 +336,248 @@ class HierarchySchema(BaseModel):
                 coerced_levels.append(level)
         self.levels = coerced_levels
         return self
+
+
+# Type alias for dimension level input
+# Can be a level name (string) or full level definition
+DimensionLevelInput = Union[str, "LevelSchema", dict[str, Any]]
+
+# Type alias for dimension hierarchy input
+# Can be a hierarchy name (string) or full hierarchy definition
+DimensionHierarchyInput = Union[str, "HierarchySchema", dict[str, Any]]
+
+
+class DimensionSchema(BaseModel):
+    """Pydantic schema for validating dimension metadata.
+
+    This schema handles raw JSON/dict input validation for dimensions including
+    template inheritance, level/hierarchy definitions, and default resolution.
+    Ensures that dimensions have valid structure with mutually exclusive
+    levels vs attributes alternatives.
+
+    Attributes:
+        name: Dimension name, used as identifier (required).
+        template: Name of a template dimension to inherit from.
+        levels: List of level definitions. Mutually exclusive with attributes.
+        hierarchies: List of hierarchy definitions. If not provided, a default
+            hierarchy is created from all levels.
+        default_hierarchy_name: Name of the default hierarchy to use.
+        attributes: Alternative to levels for flat dimensions.
+        label: Human-readable label displayed to users.
+        description: Longer description of the dimension.
+        info: Custom information dictionary for app-specific metadata.
+        role: Role of the dimension (e.g., "time" for time dimensions).
+        cardinality: Approximate number of dimension members.
+        category: Logical dimension group for UI organization.
+        nonadditive: Non-additivity type: "none", "all", or "time".
+    """
+
+    model_config = ConfigDict(
+        # Allow extra fields for forward compatibility
+        extra="allow",
+        # Don't validate assignments to avoid recursion issues with validators
+        validate_assignment=False,
+        # Don't allow mutation after creation
+        frozen=False,
+    )
+
+    name: str = Field(..., description="Dimension name, used as identifier")
+    template: Optional[str] = Field(
+        None, description="Name of template dimension to inherit from"
+    )
+    levels: Optional[list[DimensionLevelInput]] = Field(
+        None,
+        description="List of level definitions (mutually exclusive with attributes)",
+    )
+    hierarchies: Optional[list[DimensionHierarchyInput]] = Field(
+        None, description="List of hierarchy definitions"
+    )
+    default_hierarchy_name: Optional[str] = Field(
+        None, description="Name of the default hierarchy"
+    )
+    attributes: Optional[list[AttributeInput]] = Field(
+        None, description="Alternative to levels for flat dimensions"
+    )
+    label: Optional[str] = Field(None, description="Human-readable label")
+    description: Optional[str] = Field(None, description="Longer description")
+    info: dict[str, Any] = Field(
+        default_factory=dict, description="Custom information dictionary"
+    )
+    role: Optional[str] = Field(None, description="Role of dimension (e.g., 'time')")
+    cardinality: Optional[str] = Field(
+        None, description="Approximate cardinality: tiny, low, medium, high"
+    )
+    category: Optional[str] = Field(None, description="Logical dimension group")
+    nonadditive: Optional[str] = Field(
+        None, description="Non-additivity type: none, all, or time"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_dimension_string(cls, data: Any) -> Any:
+        """Coerce string dimension names to {"name": string} dicts.
+
+        This allows dimensions to be specified as simple strings like "my_dim"
+        which will create a dimension with that name and a single level with
+        the same name.
+
+        Args:
+            data: Input data, can be dict or string.
+
+        Returns:
+            Dictionary with name and default level.
+        """
+        if isinstance(data, str):
+            return {"name": data, "levels": [data]}
+        return data
+
+    @model_validator(mode="after")
+    def _validate_mutual_exclusion(self) -> "DimensionSchema":
+        """Validate that levels and attributes are mutually exclusive.
+
+        Raises:
+            ValueError: If both levels and attributes are provided.
+        """
+        if self.levels is not None and self.attributes is not None:
+            raise ValueError(
+                f"Dimension '{self.name}' cannot have both 'levels' and "
+                f"'attributes' fields. Use one or the other."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _coerce_levels(self) -> "DimensionSchema":
+        """Convert level strings and dicts to LevelSchema instances.
+
+        Processes the levels list and converts any strings or dictionaries
+        to LevelSchema instances.
+        """
+        if self.levels is None:
+            return self
+
+        coerced_levels: list[DimensionLevelInput] = []
+        for level in self.levels:
+            if isinstance(level, str):
+                # Convert string to LevelSchema
+                coerced_levels.append(LevelSchema.model_validate(level))
+            elif isinstance(level, dict):
+                # Convert dict to LevelSchema
+                coerced_levels.append(LevelSchema.model_validate(level))
+            else:
+                # Keep as-is (already LevelSchema)
+                coerced_levels.append(level)
+        self.levels = coerced_levels
+        return self
+
+    @model_validator(mode="after")
+    def _coerce_hierarchies(self) -> "DimensionSchema":
+        """Convert hierarchy strings and dicts to HierarchySchema instances.
+
+        Processes the hierarchies list and converts any dictionaries
+        to HierarchySchema instances while preserving string references.
+        """
+        if self.hierarchies is None:
+            return self
+
+        coerced_hierarchies: list[DimensionHierarchyInput] = []
+        for hier in self.hierarchies:
+            if isinstance(hier, dict):
+                # Convert dict to HierarchySchema
+                coerced_hierarchies.append(HierarchySchema.model_validate(hier))
+            else:
+                # Keep as-is (string or HierarchySchema)
+                coerced_hierarchies.append(hier)
+        self.hierarchies = coerced_hierarchies
+        return self
+
+    @model_validator(mode="after")
+    def _normalize_nonadditive(self) -> "DimensionSchema":
+        """Normalize nonadditive value to standard form.
+
+        Handles normalization:
+        - "none" -> None (fully additive)
+        - "all", "any" -> "all"
+        - "time" -> "time"
+        """
+        if self.nonadditive is None:
+            return self
+
+        lower_value = self.nonadditive.lower()
+
+        if lower_value == "none":
+            self.nonadditive = None
+        elif lower_value in ["all", "any"]:
+            self.nonadditive = "all"
+        elif lower_value == "time":
+            self.nonadditive = "time"
+        else:
+            raise ValueError(
+                f"Dimension '{self.name}' has unknown non-additive type "
+                f"'{self.nonadditive}'. Must be 'none', 'all', 'any', or 'time'."
+            )
+
+        return self
+
+    @model_validator(mode="after")
+    def _create_default_hierarchy(self) -> "DimensionSchema":
+        """Create default hierarchy if no hierarchies provided.
+
+        If hierarchies list is empty or None, create a single default
+        hierarchy containing all levels.
+        """
+        if self.hierarchies is not None and self.hierarchies:
+            return self
+
+        # Only create default if we have levels
+        if self.levels:
+            # Extract level names
+            level_names: list[Any] = []
+            for level in self.levels:
+                if isinstance(level, LevelSchema):
+                    level_names.append(level.name)
+                elif isinstance(level, dict):
+                    level_names.append(level.get("name", ""))
+                else:
+                    level_names.append(str(level))
+
+            if level_names:
+                default_hier = HierarchySchema(
+                    name="default",
+                    levels=level_names,
+                    label=None,
+                    info={},
+                    description=None,
+                )
+                # Use object.__setattr__ to bypass frozen check
+                object.__setattr__(self, "hierarchies", [default_hier])
+
+        return self
+
+    @model_validator(mode="after")
+    def _set_default_hierarchy_name(self) -> "DimensionSchema":
+        """Set default hierarchy name if not provided.
+
+        If no default_hierarchy_name is set, use "default" if a default
+        hierarchy exists, otherwise use the name of the first hierarchy.
+        """
+        if self.default_hierarchy_name is not None:
+            return self
+
+        if self.hierarchies:
+            # Check for hierarchy named "default"
+            for hier in self.hierarchies:
+                if isinstance(hier, HierarchySchema) and hier.name == "default":
+                    self.default_hierarchy_name = "default"
+                    return self
+                elif isinstance(hier, str) and hier == "default":
+                    self.default_hierarchy_name = "default"
+                    return self
+
+            # Use first hierarchy name
+            first_hier = self.hierarchies[0]
+            if isinstance(first_hier, HierarchySchema):
+                self.default_hierarchy_name = first_hier.name
+            else:
+                self.default_hierarchy_name = str(first_hier)
+
+        return self

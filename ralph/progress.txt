@@ -474,3 +474,41 @@ Session: [Not shared]
   - next_level(None) returns first level
   - previous_level(None) returns None
 ---
+
+## Sun Mar 01 2026 23:30:00 CET - US-016
+Session: [Not shared]
+- Implemented Dimension Pydantic Schema in src/cubes/metadata/schemas/dimension.py
+- Created comprehensive tests in src/tests/metadata/test_dimension_schema.py (32 test cases)
+- All acceptance criteria met:
+  - DimensionSchema with all required fields: name, template, levels, hierarchies, default_hierarchy_name, attributes (alternative), label, description, info, role, cardinality, category, nonadditive
+  - Mutual exclusion of levels and attributes enforced via @model_validator(mode="after")
+  - String coercion for simple dimension names (creates single level with same name)
+  - Default hierarchy created from all levels if no hierarchies provided
+  - Default hierarchy name resolution: explicit -> "default" -> first hierarchy name
+  - Template field support for dimension inheritance
+  - Nonadditive normalization (none->None, all/any->all, time->time)
+  - Level and hierarchy coercion from strings/dicts to schema instances
+  - All 32 tests pass including legacy dimension expansion tests
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/schemas/dimension.py (added DimensionSchema class)
+- src/cubes/metadata/schemas/__init__.py (updated exports with DimensionSchema)
+- src/tests/metadata/test_dimension_schema.py (new, 32 tests)
+- ralph/prd.json (updated US-016 passes: true)
+- ralph/progress.txt (this entry)
+
+**Learnings for future iterations:**
+- Dimension schema string coercion converts "dim_name" to {"name": "dim_name", "levels": ["dim_name"]}
+  - This creates a flat dimension with single level named same as dimension
+- Mutual exclusion validation in @model_validator(mode="after") provides clear error messages
+  - Check both fields are not None before raising ValueError
+- Default hierarchy creation happens after level coercion, so levels are already LevelSchema instances
+- Type annotation `list[Any]` is needed for coerced lists to satisfy mypy --strict
+- Template inheritance is NOT resolved at schema level - it's handled by the domain model
+  - Schema only validates and stores the template field name
+- Extra fields are allowed (ConfigDict(extra="allow")) for forward compatibility
+  - Custom fields are accessible via attribute access (e.g., dim.custom_field)
+- Use object.__setattr__() to bypass frozen check when setting hierarchies in validators
+  - This is needed because frozen=False still has some restrictions in Pydantic v2
+---

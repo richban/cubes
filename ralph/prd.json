@@ -189,21 +189,24 @@
       "notes": "Implemented in src/cubes/metadata/models/attributes.py with 36 comprehensive tests. All acceptance criteria met including topological sorting with Kahn's algorithm, cycle detection, and mathematical equivalence with legacy implementation. Typecheck passes with mypy --strict."
     },
     {
-      "id": "US-012",
-      "title": "Create Level Pydantic Schema",
-      "description": "As a developer, I want a Pydantic schema for hierarchy levels so that key, label, and order attribute defaults are handled during parsing.",
+      "id": "US-016",
+      "title": "Create Dimension Pydantic Schema",
+      "description": "As a developer, I want a Pydantic schema for dimensions so that template inheritance and hierarchy defaults are handled during parsing.",
       "acceptanceCriteria": [
         "Create src/cubes/metadata/schemas/dimension.py",
-        "Schema fields: name, attributes (list of Attribute schemas), key, label_attribute, order_attribute, order, cardinality, role, nonadditive, info, description",
-        "Implement @model_validator(mode=after) to set defaults: key = first attribute, label_attribute = second attribute (or first if only one), order_attribute = first attribute",
-        "Support string coercion for level names (creates single attribute)",
-        "Integrate with Attribute schema for nested validation",
-        "Port legacy level expansion tests",
+        "Schema fields: name, levels, hierarchies, default_hierarchy_name, label, description, info, role, cardinality, category, nonadditive, attributes (alternative to levels)",
+        "Implement @model_validator(mode=after) to enforce: cannot have BOTH levels AND attributes",
+        "Implement template resolution logic in @model_validator(mode=before) or factory",
+        "If no hierarchies, create default hierarchy from all levels",
+        "If no default_hierarchy_name, use default or first hierarchy",
+        "Support template field for dimension inheritance",
+        "Filter template hierarchies to only those using local levels",
+        "Port legacy dimension expansion tests including template inheritance",
         "Typecheck passes"
       ],
-      "priority": 12,
+      "priority": 16,
       "passes": true,
-      "notes": "Implemented with 42 comprehensive tests. All acceptance criteria met including string coercion, attribute validation, order/nonadditive normalization, and default attribute resolution. Typecheck passes with mypy --strict."
+      "notes": "Implemented with 32 comprehensive tests. All acceptance criteria met including mutual exclusion of levels vs attributes, default hierarchy creation, template field support, nonadditive normalization, and legacy dimension expansion patterns. Typecheck passes with mypy --strict."
     },
     {
       "id": "US-013",
