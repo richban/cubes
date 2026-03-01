@@ -424,3 +424,53 @@ Session: [Not shared]
 - Empty levels validation provides descriptive error message including hierarchy name
 - JSON schema compliance: hierarchies must have at least one level (matches cubes/schemas/dimension.json)
 ---
+
+## Sun Mar 01 2026 22:30:00 CET - US-015
+Session: [Not shared]
+- Implemented Hierarchy domain dataclass in src/cubes/metadata/models/dimension.py
+- Created HierarchyError exception class
+- Created comprehensive tests in src/tests/metadata/test_hierarchy.py (74 test cases)
+- All acceptance criteria met:
+  - Hierarchy dataclass with all properties: name, levels, label, description, info
+  - All traversal methods implemented: keys(), levels_for_path(), levels_for_depth(), next_level(), previous_level(), level_index(), is_last(), rollup(), path_is_base()
+  - Collection methods: __len__, __getitem__, __contains__
+  - all_attributes property flattens all level attributes
+  - key_attributes() method returns all level keys
+  - level_names property for easy access to level names
+  - __eq__, __hash__, __str__ methods for proper object behavior
+  - __deepcopy__ disowns dimension from level attributes (sets to None)
+  - to_dict() with create_label option
+  - from_schema() factory method for creating from HierarchySchema
+  - All 74 tests pass including legacy test porting
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/models/dimension.py (added Hierarchy and HierarchyError classes)
+- src/cubes/metadata/models/__init__.py (updated exports)
+- src/tests/metadata/test_hierarchy.py (new, 74 tests)
+- ralph/prd.json (updated US-015 passes: true)
+- ralph/progress.txt (this entry)
+
+**Learnings for future iterations:**
+- Hierarchy traversal methods accept both Level objects and level name strings
+  - Use str(level) to normalize input for comparison
+  - level_index() accepts both types and returns position
+  - is_last() checks equality against last level or its name
+- Collection methods follow Python conventions:
+  - __getitem__ raises HierarchyError (not IndexError) with descriptive message
+  - __contains__ checks both Level objects and string names
+  - __len__ returns number of levels
+- Rollup algorithm:
+  - If level specified: truncate path to that level's index + 1
+  - If no level: remove last element (len-1)
+  - Empty path returns empty list
+- deepcopy pattern for hierarchies:
+  - Deep copy all levels
+  - Level deepcopy automatically disowns dimension from attributes
+  - Copy info dict defensively
+- All traversal methods match legacy mathematical behavior exactly
+  - levels_for_depth(depth, drilldown) with bounds checking
+  - path_is_base checks len(path) == len(levels)
+  - next_level(None) returns first level
+  - previous_level(None) returns None
+---
