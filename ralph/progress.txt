@@ -179,3 +179,29 @@ Session: [Not shared]
 - Hash should always be based on ref since that's the unique identifier, not on all fields
 - When setting dimension to None, ref should revert to just the attribute name (not keep the old prefixed ref)
 ---
+
+## Sun Mar 01 2026 16:45:00 CET - US-007
+Session: [Not shared]
+- Implemented Measure Pydantic Schema in src/cubes/metadata/schemas/attributes.py
+- Created comprehensive tests in src/tests/metadata/test_measure_schema.py (38 test cases)
+- All acceptance criteria met:
+  - MeasureSchema extends AttributeSchema with formula, aggregates, nonadditive, window_size fields
+  - @field_validator for nonadditive normalization (none->None, all/any->all, time->time)
+  - @model_validator(mode="after") for aggregate function validation
+  - String coercion support via model_validate() override
+  - All 38 tests pass including edge cases
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/schemas/attributes.py (added MeasureSchema, MeasureInput)
+- src/cubes/metadata/schemas/__init__.py (updated exports)
+- src/tests/metadata/test_measure_schema.py (new, 38 tests)
+
+**Learnings for future iterations:**
+- When using Pydantic v2 model inheritance with model_validate(), mypy doesn't understand super() returns the subclass
+  - Fix: Store result in variable and return with `# type: ignore[return-value]` comment
+- Supported aggregate functions: sum, count, count_nonempty, min, max, avg, identity, mean, std, var, median
+- Nonadditive normalization matches legacy behavior: "none" -> None, "all"/"any" -> "all", "time" -> "time"
+- Default aggregates for measures should be ["sum"] if not specified (matches legacy)
+- Extra fields allowed (forward compatibility) via ConfigDict(extra="allow")
+---
