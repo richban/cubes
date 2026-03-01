@@ -16,6 +16,7 @@ from cubes.metadata.models.base import (
     ModelObject,
     object_dict,
 )
+from cubes.metadata.models.dimension import Level
 
 __all__ = [
     "Attribute",
@@ -25,6 +26,7 @@ __all__ = [
     "depsort_attributes",
     "ExpressionError",
     "inspect_variables",
+    "Level",
     "Measure",
     "MeasureAggregate",
     "ModelError",

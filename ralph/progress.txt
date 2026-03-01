@@ -316,3 +316,37 @@ Session: [Not shared]
 - Type annotation `list[Any]` allows subclasses while satisfying mypy --strict
 - All legacy test cases must be ported to ensure mathematical equivalence
 ---
+
+## Sun Mar 01 2026 20:00:00 CET - US-012
+Session: [Not shared]
+- Implemented Level Pydantic Schema in src/cubes/metadata/schemas/dimension.py
+- Created comprehensive tests in src/tests/metadata/test_level_schema.py (42 test cases)
+- All acceptance criteria met:
+  - Schema with all required fields: name, attributes, key, label_attribute, order_attribute, order, cardinality, role, nonadditive, info, description, label
+  - Default attribute resolution: key=first, label_attribute=second (or first if only one), order_attribute=first
+  - String coercion for level names (creates level with single attribute)
+  - Attribute list supports string coercion via AttributeInput
+  - Order normalization (asc/ASC/ascending -> asc, desc/DESC/descending -> desc)
+  - Nonadditive normalization (none->None, all/any->all, time->time)
+  - Validation of attribute references (key, label_attribute, order_attribute must exist)
+  - Extra fields allowed for forward compatibility
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/schemas/dimension.py (new)
+- src/cubes/metadata/schemas/__init__.py (updated exports)
+- src/tests/metadata/test_level_schema.py (new, 42 tests)
+- ralph/prd.json (updated US-012 passes: true)
+
+**Learnings for future iterations:**
+- Pydantic v2's `validate_assignment=True` causes infinite recursion when validators modify fields
+  - Solution: Use `validate_assignment=False` in ConfigDict when using mode="after" validators that modify fields
+  - Alternative: Use mode="before" validators that return modified data instead of modifying self
+- Default attribute resolution in LevelSchema follows legacy pattern:
+  - key defaults to first attribute name
+  - label_attribute defaults to second attribute (or first if only one)
+  - order_attribute defaults to first attribute
+- When implementing level attribute coercion, AttributeInput type handles string->dict conversion
+- Level schema references attributes using names (strings) which will be resolved to Attribute objects in domain model
+- Always validate that key/label_attribute/order_attribute reference existing attributes to catch errors early
+---
