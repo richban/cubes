@@ -777,3 +777,40 @@ Session: [Not shared]
 - Extra fields allowed (ConfigDict(extra="allow")) for forward compatibility
   - This matches pattern used in other schemas
 ---
+
+## Sun Mar 02 2026 19:30:00 CET - US-024
+Session: [Not shared]
+- Implemented Model Validation Layer in src/cubes/metadata/validation.py
+- Created comprehensive tests in src/tests/metadata/test_validation.py (27 test cases)
+- All acceptance criteria met:
+  - Dropped jsonschema dependency, using Pydantic's native Model.model_validate()
+  - ValidationError named tuple with severity, scope, object, property, message fields
+  - validate_model() function for full model validation
+  - ModelMetadataValidator class with structured validation methods
+  - Duplicate dimension name detection
+  - Duplicate cube name detection  
+  - Join validation (master and detail fields required)
+  - Mutually exclusive levels vs attributes validation
+  - Default hierarchy inference warnings
+  - String dimension warning (flat single-attribute dimension)
+  - Pydantic error conversion to structured ValidationError format
+  - All 27 tests pass including edge cases and error handling
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/validation.py (new, 312 lines)
+- src/tests/metadata/test_validation.py (new, 27 tests)
+- src/cubes/metadata/__init__.py (added ValidationError and validate_model exports)
+- ralph/prd.json (updated US-024 passes: true)
+- ralph/progress.txt (this entry)
+
+**Learnings for future iterations:**
+- ValidationError uses NamedTuple for immutability and easy unpacking
+- Error severity: 'error' for validation failures, 'default' for warnings
+- Pydantic ValidationError.errors() provides structured error info with 'loc' (location) and 'msg'
+- Error property paths are converted to dot-separated strings (e.g., "levels.0.attributes")
+- Legacy validation rules preserved: duplicate names, join fields, levels/attributes mutual exclusion
+- String dimensions generate warnings (creating flat single-attribute dimensions)
+- Validation supports both dict metadata and already-parsed objects
+- All 911 metadata tests pass with new validation layer
+---
