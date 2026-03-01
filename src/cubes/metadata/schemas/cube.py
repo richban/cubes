@@ -4,6 +4,7 @@ Provides input validation and parsing for cube definitions including
 dimension links, measures, aggregates, and implicit aggregate generation.
 """
 
+import warnings
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -304,3 +305,124 @@ class CubeSchema(BaseModel):
         self.aggregates = list(self.aggregates) + new_aggregates
 
         return self
+
+
+def expand_dimension_links(metadata: list[Any]) -> list[dict[str, Any]]:
+    """Expand links to dimensions from strings or dicts to normalized dicts.
+
+    Takes a list of dimension links which can be strings (dimension names)
+    or dictionaries, and returns a list of normalized dictionaries with at
+    least one key `name`. Other supported keys include: `hierarchies`,
+    `exclude_hierarchies`, `default_hierarchy_name`, `nonadditive`,
+    `cardinality`, `alias`.
+
+    Args:
+        metadata: List of dimension links. Each link can be a string
+            (dimension name) or a dictionary with link configuration.
+
+    Returns:
+        List of normalized dimension link dictionaries.
+
+    Raises:
+        ValueError: If a dimension link dictionary has no 'name' field.
+        TypeError: If a link is neither a string nor a dictionary.
+
+    Example:
+        >>> expand_dimension_links(["date", "product"])
+        [{"name": "date"}, {"name": "product"}]
+        >>> expand_dimension_links([{"name": "date", "hierarchies": ["ymd"]}])
+        [{"name": "date", "hierarchies": ["ymd"]}]
+    """
+    links: list[dict[str, Any]] = []
+
+    for link in metadata:
+        if isinstance(link, str):
+            link = {"name": link}
+        elif isinstance(link, dict):
+            if "name" not in link:
+                raise ValueError("Dimension link has no name")
+            # Create a copy to avoid mutating the original
+            link = dict(link)
+        else:
+            raise TypeError(
+                f"Dimension link must be string or dict, got {type(link).__name__}"
+            )
+
+        links.append(link)
+
+    return links
+
+
+def expand_cube_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Expand cube metadata to be as complete as possible.
+
+    This function preprocesses cube metadata by:
+    1. Validating that the cube has a name
+    2. Expanding dimension links using expand_dimension_links()
+    3. Handling legacy 'hierarchies' nested dict format (with deprecation warning)
+    4. Propagating nonadditive property from cube to measures
+
+    Args:
+        metadata: Dictionary containing cube metadata.
+
+    Returns:
+        Expanded cube metadata dictionary.
+
+    Raises:
+        ValueError: If the cube has no name.
+
+    Example:
+        >>> metadata = {"name": "sales", "dimensions": ["date", "product"]}
+        >>> result = expand_cube_metadata(metadata)
+        >>> result["dimensions"]
+        [{"name": "date"}, {"name": "product"}]
+    """
+    # Make a copy to avoid mutating the original
+    metadata = dict(metadata)
+
+    if "name" not in metadata:
+        raise ValueError("Cube has no name")
+
+    # Expand dimension links
+    links = metadata.get("dimensions", [])
+    if links:
+        links = expand_dimension_links(links)
+
+    # Handle legacy 'hierarchies' nested dict format
+    if "hierarchies" in metadata:
+        warnings.warn(
+            "The 'hierarchies' key in cube metadata is deprecated. "
+            "Use dimension links with 'hierarchies' field instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        dim_hiers: dict[str, Any] = dict(metadata["hierarchies"])
+
+        for link in links:
+            dim_name = link["name"]
+            if dim_name in dim_hiers:
+                link["hierarchies"] = dim_hiers.pop(dim_name)
+
+        if dim_hiers:
+            raise ValueError(
+                f"There are hierarchies specified for non-linked dimensions: "
+                f"{list(dim_hiers.keys())}"
+            )
+
+    # Propagate nonadditive from cube to measures
+    nonadditive = metadata.pop("nonadditive", None)
+    if nonadditive and "measures" in metadata:
+        measures: list[Any] = []
+        for measure in metadata["measures"]:
+            if isinstance(measure, dict):
+                measure = dict(measure)
+                if "nonadditive" not in measure:
+                    measure["nonadditive"] = nonadditive
+            measures.append(measure)
+        metadata["measures"] = measures
+
+    # Replace dimensions with expanded links
+    if links:
+        metadata["dimensions"] = links
+
+    return metadata

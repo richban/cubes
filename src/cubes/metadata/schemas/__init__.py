@@ -8,7 +8,11 @@ from cubes.metadata.schemas.attributes import (
     MeasureInput,
     MeasureSchema,
 )
-from cubes.metadata.schemas.cube import CubeSchema
+from cubes.metadata.schemas.cube import (
+    CubeSchema,
+    expand_cube_metadata,
+    expand_dimension_links,
+)
 from cubes.metadata.schemas.dimension import (
     DimensionSchema,
     HierarchySchema,
@@ -26,4 +30,6 @@ __all__ = [
     "HierarchySchema",
     "DimensionSchema",
     "CubeSchema",
+    "expand_dimension_links",
+    "expand_cube_metadata",
 ]
