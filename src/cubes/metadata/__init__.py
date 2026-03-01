@@ -19,6 +19,7 @@ from cubes.metadata.provider import (
     NoSuchDimensionError,
     TemplateRequiredError,
 )
+from cubes.metadata.static_provider import StaticModelProvider
 
 __all__ = [
     # I/O functions
@@ -37,4 +38,5 @@ __all__ = [
     "NoSuchCubeError",
     "NoSuchDimensionError",
     "TemplateRequiredError",
+    "StaticModelProvider",
 ]
