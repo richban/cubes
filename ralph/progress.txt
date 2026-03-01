@@ -594,3 +594,44 @@ Session: [Not shared]
 - Unicode characters are valid in identifier patterns with \w
 - Test edge cases thoroughly: trailing @, trailing :, double @, spaces, special chars
 ---
+
+## Sun Mar 02 2026 14:00:00 CET - US-019
+Session: [Not shared]
+- Implemented Cube Pydantic Schema in src/cubes/metadata/schemas/cube.py
+- Created comprehensive tests in src/tests/metadata/test_cube_schema.py (48 test cases)
+- All acceptance criteria met:
+  - CubeSchema with all required fields: name, dimensions, measures, aggregates, details, label, description, info, category, mappings, joins, fact, key, browser_options, store, implicit_aggregates
+  - Dimension link expansion from strings to dicts via _expand_dimension_links validator
+  - Default fact_count aggregate generated when neither measures nor aggregates provided (using mode="before" validator to distinguish between "not provided" and "empty list")
+  - Implicit aggregate generation when implicit_aggregates=True, with deduplication by name and signature
+  - Nonadditive propagation from cube to measures that don't have their own setting
+  - Aggregate label templates applied: sum->"Sum of {measure}", count->"Record Count", etc.
+  - All 48 tests pass including legacy cube expansion patterns
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/schemas/cube.py (new)
+- src/cubes/metadata/schemas/__init__.py (updated exports with CubeSchema)
+- src/tests/metadata/test_cube_schema.py (new, 48 tests)
+- ralph/prd.json (updated US-019 passes: true)
+- ralph/progress.txt (this entry)
+
+**Learnings for future iterations:**
+- Default fact_count aggregate only created when neither measures nor aggregates keys exist in input
+  - Use mode="before" validator to check key existence before defaults are applied
+  - Empty list [] is different from key not being present (legacy behavior)
+- Implicit aggregate generation creates aggregates for each measure's aggregate functions
+  - Identity aggregate: name=measure_name, measure=None, function=None (special case)
+  - Regular aggregate: name="{measure}_{function}", measure=measure_name, function=function
+  - Deduplication checks both name AND (function, measure) signature
+- Nonadditive propagation uses "after" validator that iterates and updates measures
+  - Must handle both dict and MeasureSchema instances
+  - Only override if measure.nonadditive is None (not explicitly set)
+- Label templates for aggregates:
+  - sum: "Sum of {measure}", count: "Record Count", count_nonempty: "Non-empty count of {measure}"
+  - min: "{measure} Minimum", max: "{measure} Maximum", avg: "Average of {measure}"
+- Dimension link expansion: string -> {"name": string}, dict preserved as-is
+  - Missing "name" field raises ValueError with descriptive message
+- Extra fields allowed (ConfigDict(extra="allow")) for forward compatibility
+  - This matches pattern used in other schemas
+---

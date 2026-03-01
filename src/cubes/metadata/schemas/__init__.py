@@ -8,6 +8,7 @@ from cubes.metadata.schemas.attributes import (
     MeasureInput,
     MeasureSchema,
 )
+from cubes.metadata.schemas.cube import CubeSchema
 from cubes.metadata.schemas.dimension import (
     DimensionSchema,
     HierarchySchema,
@@ -24,4 +25,5 @@ __all__ = [
     "LevelSchema",
     "HierarchySchema",
     "DimensionSchema",
+    "CubeSchema",
 ]
