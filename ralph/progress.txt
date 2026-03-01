@@ -392,3 +392,35 @@ Session: [Not shared]
 - Level schema references attributes using names (strings) which will be resolved to Attribute objects in domain model
 - Always validate that key/label_attribute/order_attribute reference existing attributes to catch errors early
 ---
+
+## Sun Mar 01 2026 21:30:00 CET - US-014
+Session: [Not shared]
+- Implemented Hierarchy Pydantic Schema in src/cubes/metadata/schemas/dimension.py
+- Created comprehensive tests in src/tests/metadata/test_hierarchy_schema.py (20 test cases)
+- All acceptance criteria met:
+  - HierarchySchema with fields: name, levels (Union[str, LevelSchema, dict]), label, info, description
+  - Levels list must not be empty (validated with @model_validator)
+  - Support for level name references (strings) that will be resolved later
+  - Support for mixed level types: strings, LevelSchema objects, or dicts
+  - Level dicts are automatically coerced to LevelSchema instances
+  - Ported legacy hierarchy expansion tests (simple names, full definitions, multiple hierarchies)
+  - All 20 tests pass
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/schemas/dimension.py (added HierarchySchema class)
+- src/cubes/metadata/schemas/__init__.py (updated exports)
+- src/tests/metadata/test_hierarchy_schema.py (new, 20 tests)
+- ralph/prd.json (updated US-014 passes: true)
+- ralph/progress.txt (this entry)
+
+**Learnings for future iterations:**
+- Hierarchy level input uses type alias: `HierarchyLevelInput = Union[str, LevelSchema, dict[str, Any]]`
+- String level references are kept as strings for later resolution by the domain model
+- Dict level definitions are coerced to LevelSchema instances during validation via _coerce_level_dicts validator
+- Mixed levels list is valid: ["year", {"name": "month", "attributes": [...]}, "day"]
+- Model validators should check `isinstance(level, dict)` to decide whether to coerce or preserve
+- Forward compatibility: extra fields allowed via ConfigDict(extra="allow")
+- Empty levels validation provides descriptive error message including hierarchy name
+- JSON schema compliance: hierarchies must have at least one level (matches cubes/schemas/dimension.json)
+---

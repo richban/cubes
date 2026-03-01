@@ -6,6 +6,8 @@ and dimensions. Handles default value resolution and attribute normalization.
 
 from typing import Any, Optional
 
+from typing import Union
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from cubes.metadata.schemas.attributes import AttributeInput, AttributeSchema
@@ -264,4 +266,73 @@ class LevelSchema(BaseModel):
                 f"Must be 'asc' or 'desc'."
             )
 
+        return self
+
+
+# Type alias for hierarchy level references
+# Can be a level name (string), a full LevelSchema, or a dict representing a level
+HierarchyLevelInput = Union[str, "LevelSchema", dict[str, Any]]
+
+
+class HierarchySchema(BaseModel):
+    """Pydantic schema for validating hierarchy metadata.
+
+    This schema handles raw JSON/dict input validation for dimension hierarchies.
+    Hierarchies define the ordering of levels for drill-down and roll-up operations.
+
+    Attributes:
+        name: Hierarchy name, used as identifier (required).
+        levels: Ordered list of level references. Can be level names (strings)
+            or full level definitions. Must contain at least one level.
+        label: Human-readable label displayed to users.
+        info: Custom information dictionary for app-specific metadata.
+        description: Longer description of the hierarchy.
+    """
+
+    model_config = ConfigDict(
+        # Allow extra fields for forward compatibility
+        extra="allow",
+        # Don't validate assignments to avoid recursion issues with validators
+        validate_assignment=False,
+        # Don't allow mutation after creation
+        frozen=False,
+    )
+
+    name: str = Field(..., description="Hierarchy name, used as identifier")
+    levels: list[HierarchyLevelInput] = Field(
+        ..., description="Ordered list of level references (names or level definitions)"
+    )
+    label: Optional[str] = Field(None, description="Human-readable label")
+    info: dict[str, Any] = Field(
+        default_factory=dict, description="Custom information dictionary"
+    )
+    description: Optional[str] = Field(None, description="Longer description")
+
+    @model_validator(mode="after")
+    def _validate_levels_not_empty(self) -> "HierarchySchema":
+        """Validate that levels list is not empty.
+
+        Raises:
+            ValueError: If levels list is empty.
+        """
+        if not self.levels:
+            raise ValueError(f"Hierarchy '{self.name}' must have at least one level")
+        return self
+
+    @model_validator(mode="after")
+    def _coerce_level_dicts(self) -> "HierarchySchema":
+        """Convert level dicts to LevelSchema instances.
+
+        Processes the levels list and converts any dictionaries to LevelSchema
+        instances while preserving string references.
+        """
+        coerced_levels: list[HierarchyLevelInput] = []
+        for level in self.levels:
+            if isinstance(level, dict):
+                # Convert dict to LevelSchema
+                coerced_levels.append(LevelSchema.model_validate(level))
+            else:
+                # Keep as-is (string or LevelSchema)
+                coerced_levels.append(level)
+        self.levels = coerced_levels
         return self
