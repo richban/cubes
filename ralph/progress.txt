@@ -61,3 +61,61 @@ Session: [Not shared]
 - Tests for I/O operations should use tmp_path fixture for temporary directories
 - Bundle reading should search recursively (rglob) for dimension/cube files
 ---
+
+## Sun Mar 01 2026 13:45:00 CET - US-003
+Session: [Not shared]
+- Implemented object_dict utility function in src/cubes/metadata/models/base.py
+- Created comprehensive tests in src/tests/metadata/test_object_dict.py (22 test cases)
+- Added ModelError exception class for model-related errors
+- All acceptance criteria met:
+  - object_dict() with by_ref option for using ref attribute as key
+  - Raises ModelError on duplicate keys with custom error messages
+  - Returns regular dict (Python 3.7+ preserves insertion order, no OrderedDict needed)
+  - Supports error_message and error_dict parameters for formatting
+  - All tests pass including edge cases (unicode, special chars, large datasets)
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/models/base.py (added ModelError and object_dict)
+- src/cubes/metadata/models/__init__.py (updated exports)
+- src/cubes/metadata/__init__.py (updated exports)
+- src/tests/metadata/test_object_dict.py (new, 22 tests)
+
+**Learnings for future iterations:**
+- Use `obj.ref if by_ref else obj.name` with `# type: ignore[attr-defined]` for dynamic attribute access
+- Protocol classes (_NamedObject, _RefObject) document expected interfaces without runtime overhead
+- ModelError should be in the models module since it's a model-related error
+- When using TypeVar with object_dict, the return type preserves the input type
+- Tests should cover: empty lists, single/multiple objects, duplicates, custom messages, by_ref, edge cases
+---
+
+## Sun Mar 01 2026 14:30:00 CET - US-004
+Session: [Not shared]
+- Implemented Attribute Pydantic Schema in src/cubes/metadata/schemas/attributes.py
+- Created comprehensive tests in src/tests/metadata/test_attribute_schema.py (30 test cases)
+- All acceptance criteria met:
+  - Schema with all required fields: name, label, description, order, info, format, missing_value, expression
+  - @field_validator for order normalization (ASC/asc -> asc, case-insensitive)
+  - String coercion via model_validate override (supports string input like "attr_name")
+  - Extra fields allowed for forward compatibility
+  - All legacy expand_attribute_metadata edge cases covered
+  - JSON schema compliance with cubes/schemas/dimension.json
+  - Typecheck passes with mypy --strict
+  - All tests pass
+
+**Files changed:**
+- src/cubes/metadata/schemas/__init__.py (new)
+- src/cubes/metadata/schemas/attributes.py (new)
+- src/tests/metadata/test_attribute_schema.py (new, 30 tests)
+- Installed pydantic v2.12.5 in src/.venv
+
+**Learnings for future iterations:**
+- Pydantic v2 uses model_dump() instead of dict() for serialization
+- Override model_validate() to support string coercion before validation
+- @field_validator with mode="before" for normalization (case, prefixes)
+- Use ConfigDict with extra="allow" for forward compatibility
+- Literal types enforce specific string values ("asc", "desc")
+- Default factories (default_factory=dict) prevent shared mutable defaults
+- Annotated types with BeforeValidator are for field type hints, not direct validation
+- Always import from typing_extensions for Annotated in older Python versions
+---
