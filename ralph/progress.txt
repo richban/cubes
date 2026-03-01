@@ -1,3 +1,33 @@
 # Ralph Progress Log
 Started: Sun Mar  1 12:10:01 CET 2026
 ---
+
+## Codebase Patterns
+- Use `dataclasses` with `field(default_factory=dict)` for mutable defaults
+- Type annotations must use `dict[str, Any]` instead of bare `dict` for mypy --strict
+- Return defensive copies from `to_dict()` methods (e.g., `dict(self.info)`)
+- Tests use pytest with descriptive test names and docstrings
+- All model objects have: name, label (optional), description (optional), info (default {})
+- Label generation: replace underscores with spaces, capitalize first letter only
+
+## Sun Mar 01 2025 12:45:00 CET - US-001
+Session: https://opencodeshare.com/s/cm7uz8qgp0001ld03a5jwk0v
+- Implemented ModelObject base dataclass in src/cubes/metadata/models/base.py
+- Created comprehensive tests in src/tests/metadata/test_model_object.py (13 test cases)
+- All acceptance criteria met:
+  - Dataclass with name, label, description, info properties
+  - to_dict() with create_label parameter for auto-generating labels
+  - Typecheck passes with mypy --strict
+  - All tests pass
+
+**Files changed:**
+- src/cubes/metadata/models/base.py (new)
+- src/tests/metadata/test_model_object.py (new)
+- src/cubes/metadata/models/__init__.py (updated)
+
+**Learnings for future iterations:**
+- The to_label() function only capitalizes the first letter (capitalize() lowercases the rest)
+- Always return copies of mutable data in to_dict() to prevent external mutation
+- Use field(default_factory=dict) to avoid shared mutable defaults between instances
+- Testing should cover edge cases like dict mutation, equality, and label generation
+---
