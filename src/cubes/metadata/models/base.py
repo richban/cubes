@@ -1,20 +1,14 @@
-"""Base classes for model objects."""
-
-from __future__ import annotations
+"""Base classes for all model objects."""
 
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 
 def to_label(name: str, capitalize: bool = True) -> str:
-    """Convert name into label by replacing underscores with spaces.
+    """Converts `name` into label by replacing underscores by spaces.
 
-    Args:
-        name: The name to convert.
-        capitalize: Whether to capitalize the first letter (default: True).
-
-    Returns:
-        The formatted label string.
+    If `capitalize` is ``True`` (default) then the first letter of the label is
+    capitalized.
     """
     label = name.replace("_", " ")
     if capitalize:
@@ -27,13 +21,13 @@ class ModelObject:
     """Base class for all model objects.
 
     Provides common properties (name, label, description, info) that are
-    standardized and type-safe across all model objects.
+    standardized and type-safe.
 
     Attributes:
-        name: The object's name/identifier.
-        label: Optional human-readable label.
-        description: Optional description text.
-        info: Dictionary for arbitrary metadata (default empty dict).
+        name: The unique identifier for this model object.
+        label: Human-readable label (optional, auto-generated if not provided).
+        description: Longer description of the object (optional).
+        info: Dictionary of additional metadata (defaults to empty dict).
     """
 
     name: str
@@ -41,27 +35,21 @@ class ModelObject:
     description: Optional[str] = None
     info: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self, create_label: bool = False, **options: Any) -> dict[str, Any]:
-        """Convert to a dictionary representation.
+    def to_dict(self, create_label: bool = False) -> dict[str, Any]:
+        """Convert to a dictionary.
 
         Args:
-            create_label: If True, generate a label from name if label is None.
-            **options: Additional options (ignored for compatibility).
+            create_label: If True and no label is set, auto-generate from name.
+                         If False, use the existing label (which may be None).
 
         Returns:
-            Dictionary with name, label, description, and info fields.
+            Dictionary representation with keys: name, label, description, info.
         """
-        result: dict[str, Any] = {
+        return {
             "name": self.name,
-            "info": self.info,
+            "label": to_label(self.name)
+            if create_label and self.label is None
+            else self.label,
+            "description": self.description,
+            "info": dict(self.info),
         }
-
-        if create_label:
-            result["label"] = self.label or to_label(self.name)
-        else:
-            result["label"] = self.label
-
-        result["description"] = self.description
-
-        # Remove None values to match IgnoringDictionary behavior
-        return {k: v for k, v in result.items() if v is not None}

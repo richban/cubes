@@ -15,8 +15,8 @@
         "Typecheck passes with mypy --strict"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Implemented ModelObject dataclass with to_dict method. Removed localized() method as localization is not in scope."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -58,7 +58,7 @@
       "description": "As a developer, I want a Pydantic schema for parsing attribute definitions so that raw JSON/dict inputs are validated and coerced correctly.",
       "acceptanceCriteria": [
         "Create src/cubes/metadata/schemas/attributes.py",
-        "Schema fields: name: str, label: Optional[str], description: Optional[str], order: Optional[Literal[asc, desc]], info: dict, format: Optional[str], missing_value: Any, expression: Optional[str], locales: list[str]",
+        "Schema fields: name: str, label: Optional[str], description: Optional[str], order: Optional[Literal[asc, desc]], info: dict, format: Optional[str], missing_value: Any, expression: Optional[str]",
         "Implement @field_validator(order) to normalize case (ASC/asc -> asc)",
         "Implement BeforeValidator to coerce string inputs to {name: string} dicts",
         "All legacy expand_attribute_metadata edge cases covered",
@@ -94,11 +94,10 @@
       "description": "As a developer, I want a domain dataclass for dimension attributes.",
       "acceptanceCriteria": [
         "Extend AttributeBase with Attribute dataclass",
-        "Add locales: list[str] and dimension: Optional[Dimension] properties",
+        "Add dimension: Optional[Dimension] property",
         "Implement dimension property setter that updates ref to dimension.name + . + name",
         "Ensure __deepcopy__ disowns dimension (sets to None)",
-        "Port legacy Attribute tests",
-        "Typecheck passes"
+        "Port legacy Attribute tests"
       ],
       "priority": 6,
       "passes": false,
@@ -296,7 +295,6 @@
         "Implement clone(hierarchies=None, exclude_hierarchies=None, nonadditive=None, default_hierarchy_name=None, cardinality=None, alias=None) for dimension cloning with modifications",
         "Clone must unown level attributes from original dimension",
         "Implement to_dict() with hierarchy_limits support",
-        "Implement localizable_dictionary() for translations",
         "Port legacy Dimension tests including cloning and template inheritance",
         "Typecheck passes"
       ],
@@ -327,7 +325,7 @@
       "description": "As a developer, I want a Pydantic schema for cubes so that dimension links, implicit aggregates, and nonadditive propagation are handled during parsing.",
       "acceptanceCriteria": [
         "Create src/cubes/metadata/schemas/cube.py",
-        "Schema fields: name, dimensions (links), measures, aggregates, details, label, description, info, locale, category, mappings, joins, fact, key, browser_options, store, implicit_aggregates",
+        "Schema fields: name, dimensions (links), measures, aggregates, details, label, description, info, category, mappings, joins, fact, key, browser_options, store, implicit_aggregates",
         "Implement @model_validator(mode=after) for: Expanding dimension links from strings to dicts, Generating default fact_count aggregate if no measures/aggregates, Implicit aggregate generation from measures if implicit_aggregates=True, Propagating nonadditive from cube to measures, Assigning implicit aggregate labels using template strings",
         "Handle mutually exclusive dimensions vs dimension_links validation",
         "Merge model-level and cube-level mappings and joins",
@@ -344,7 +342,7 @@
       "description": "As a developer, I want a domain dataclass for cubes so that dimension linking, attribute collection, and aggregate management are cleanly implemented.",
       "acceptanceCriteria": [
         "Create src/cubes/metadata/models/cube.py with Cube dataclass",
-        "Properties: name, measures, aggregates, details, dimensions, _dimensions, _measures, _aggregates, mappings, joins, fact, key, browser_options, store, store_name, dimension_links, label, description, info, locale, category, basename",
+        "Properties: name, measures, aggregates, details, dimensions, _dimensions, _measures, _aggregates, mappings, joins, fact, key, browser_options, store, store_name, dimension_links, label, description, info, category, basename",
         "Implement __post_init__ to: Validate measures and aggregates are correct types, Build lookup dictionaries, Expand dimension links, Handle store string vs object",
         "Implement property getters: measures, aggregates, dimensions, all_dimension_keys",
         "Implement lookup methods: measure(name), get_measures(measures), aggregate(name), get_aggregates(names), aggregates_for_measure(name), dimension(obj)",
@@ -356,7 +354,6 @@
         "Implement _add_dimension(dimension) internal method",
         "Implement distilled_hierarchies property returning {(dim_name, hier_name): [level_keys]}",
         "Implement to_dict() with expand_dimensions and hierarchy_limits options",
-        "Implement localize(trans) for applying translations",
         "Port legacy Cube tests including dimension linking and attribute collection",
         "Typecheck passes"
       ],
@@ -387,10 +384,9 @@
       "description": "As a developer, I want a base class for metadata providers so that different model sources (files, APIs, databases) can be implemented consistently.",
       "acceptanceCriteria": [
         "Create src/cubes/metadata/provider.py with MetadataProvider base class",
-        "Methods: list_cubes(), has_cube(name), cube(name, locale=None), dimension(name, templates=None, locale=None)",
+        "Methods: list_cubes(), has_cube(name), cube(name), dimension(name, templates=None)",
         "Implement template resolution caching",
         "Implement dimension lookup with cycle detection",
-        "Support locale-specific metadata retrieval",
         "Port legacy provider tests",
         "Typecheck passes"
       ],
