@@ -9,6 +9,48 @@ Started: Sun Mar  1 12:10:01 CET 2026
 - Tests use pytest with descriptive test names and docstrings
 - All model objects have: name, label (optional), description (optional), info (default {})
 - Label generation: replace underscores with spaces, capitalize first letter only
+- **Important**: Cannot inherit from ModelObject if subclass needs required fields (dataclass constraint)
+  - Instead, duplicate name/label/description/info fields directly in the subclass
+  - This is a Python dataclass limitation: fields without defaults cannot follow fields with defaults
+- Use `Union[Attribute, str, None]` type for init parameters that accept string references
+  - Resolve to Attribute in `__post_init__` using `isinstance()` checks
+- Use `object.__setattr__()` to set frozen/final fields in `__post_init__`
+
+## Sun Mar 01 2026 21:00:00 CET - US-013
+Session: [Not shared]
+- Implemented Level domain dataclass in src/cubes/metadata/models/dimension.py
+- Created comprehensive tests in src/tests/metadata/test_level.py (53 test cases)
+- All acceptance criteria met:
+  - Level dataclass with all properties: name, attributes, key, label_attribute, order_attribute, order, cardinality, role, nonadditive, info, label, description
+  - __post_init__ resolves attribute references (supports both Attribute objects and string names)
+  - attribute(name) lookup method with descriptive error messages
+  - has_details property (True if len(attributes) > 1)
+  - to_dict() with full_attribute_names option for using refs vs names
+  - All 53 tests pass including legacy test porting
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/models/dimension.py (complete rewrite with Level class)
+- src/cubes/metadata/models/__init__.py (updated exports)
+- src/tests/metadata/test_level.py (new, 53 tests)
+- ralph/prd.json (updated US-013 passes: true)
+- ralph/progress.txt (this entry)
+
+**Learnings for future iterations:**
+- Python dataclass inheritance limitation: cannot add required fields after inheriting optional fields
+  - Solution: Don't inherit ModelObject; duplicate fields directly in subclass
+  - Pattern: `name: str` and `label: Optional[str] = None` must come before optional fields with defaults
+- Union types with `Union[Attribute, str, None]` allow flexible initialization
+  - Use isinstance checks in __post_init__ to resolve string references to objects
+- Default attribute resolution follows legacy pattern:
+  - key defaults to first attribute
+  - label_attribute defaults to second attribute (or first if only one)
+  - order_attribute defaults to first attribute
+- Deep copy must preserve key/label_attribute/order_attribute references by storing names
+  - They get re-resolved in __post_init__ of the copied instance
+- The from_schema() factory method bridges Pydantic schemas to domain models
+  - Handles conversion from AttributeSchema/dict/str to Attribute objects
+---
 
 ## Sun Mar 01 2025 12:45:00 CET - US-001
 Session: https://opencodeshare.com/s/cm7uz8qgp0001ld03a5jwk0v
