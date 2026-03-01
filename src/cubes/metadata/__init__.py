@@ -7,7 +7,7 @@ from cubes.metadata.io import (
     read_model_metadata_bundle,
     write_model_metadata_bundle,
 )
-from cubes.metadata.models import ModelObject
+from cubes.metadata.models import ModelError, ModelObject, object_dict
 
 __all__ = [
     # I/O functions
@@ -16,6 +16,8 @@ __all__ = [
     "write_model_metadata_bundle",
     "MetadataIOError",
     "MetadataNotFoundError",
-    # Model classes
+    # Model classes and utilities
+    "ModelError",
     "ModelObject",
+    "object_dict",
 ]
