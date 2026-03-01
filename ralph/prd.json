@@ -268,25 +268,6 @@
       "notes": "Implemented with 74 comprehensive tests. All acceptance criteria met including traversal methods (keys, levels_for_path, levels_for_depth, next_level, previous_level, level_index, is_last, rollup, path_is_base), collection methods (__len__, __getitem__, __contains__), all_attributes property, and from_schema() factory method. Typecheck passes with mypy --strict."
     },
     {
-      "id": "US-016",
-      "title": "Create Dimension Pydantic Schema",
-      "description": "As a developer, I want a Pydantic schema for dimensions so that template inheritance and hierarchy defaults are handled during parsing.",
-      "acceptanceCriteria": [
-        "Schema fields: name, levels, hierarchies, default_hierarchy_name, label, description, info, role, cardinality, category, nonadditive, attributes (alternative to levels)",
-        "Implement @model_validator(mode=after) to enforce: cannot have BOTH levels AND attributes",
-        "Implement template resolution logic in @model_validator(mode=before) or factory",
-        "If no hierarchies, create default hierarchy from all levels",
-        "If no default_hierarchy_name, use default or first hierarchy",
-        "Support template field for dimension inheritance",
-        "Filter template hierarchies to only those using local levels",
-        "Port legacy dimension expansion tests including template inheritance",
-        "Typecheck passes"
-      ],
-      "priority": 16,
-      "passes": false,
-      "notes": ""
-    },
-    {
       "id": "US-017",
       "title": "Create Dimension Domain Dataclass",
       "description": "As a developer, I want a domain dataclass for dimensions so that level ownership, hierarchy management, and attribute indexing are cleanly implemented.",
