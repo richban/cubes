@@ -149,3 +149,33 @@ Session: [Not shared]
 - ref defaults to name and will be updated when dimension is assigned (future US-006)
 - inspect_variables handles Python keywords, dotted attribute access, and various whitespace patterns
 ---
+
+## Sun Mar 01 2026 16:00:00 CET - US-006
+Session: [Not shared]
+- Implemented Attribute domain dataclass in src/cubes/metadata/models/attributes.py
+- Created comprehensive tests in src/tests/metadata/test_attribute.py (45 test cases)
+- Created Dimension stub class for forward references in src/cubes/metadata/models/dimension.py
+- All acceptance criteria met:
+  - Extended AttributeBase with Attribute dataclass
+  - Added dimension: Optional[Dimension] property with getter/setter
+  - Dimension setter updates ref to "dimension.name.attribute.name" format
+  - __deepcopy__ disowns dimension (sets to None) and reverts ref to name only
+  - Ported all legacy Attribute tests including edge cases
+  - All 45 tests pass
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/models/attributes.py (added Attribute class)
+- src/cubes/metadata/models/__init__.py (updated exports)
+- src/cubes/metadata/models/dimension.py (new stub)
+- src/tests/metadata/test_attribute.py (new, 45 tests)
+
+**Learnings for future iterations:**
+- When extending dataclasses with custom __eq__, you must also implement __hash__ explicitly in the subclass
+- Dataclasses with mutable fields (like dict) are unhashable by default - need explicit __hash__ override
+- Use `object.__setattr__()` to set frozen/final fields in __post_init__ when using frozen dataclasses
+- Forward references work with TYPE_CHECKING imports for circular dependencies
+- Deep copy should create new instances without the parent relationship (disown pattern)
+- Hash should always be based on ref since that's the unique identifier, not on all fields
+- When setting dimension to None, ref should revert to just the attribute name (not keep the old prefixed ref)
+---
