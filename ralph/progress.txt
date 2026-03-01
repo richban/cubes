@@ -31,3 +31,33 @@ Session: https://opencodeshare.com/s/cm7uz8qgp0001ld03a5jwk0v
 - Use field(default_factory=dict) to avoid shared mutable defaults between instances
 - Testing should cover edge cases like dict mutation, equality, and label generation
 ---
+
+## Sun Mar 01 2025 13:15:00 CET - US-002
+Session: [Not shared]
+- Implemented Metadata I/O utilities in src/cubes/metadata/io.py
+- Created comprehensive tests in src/tests/metadata/test_io.py (39 test cases)
+- All acceptance criteria met:
+  - read_model_metadata() supporting file paths, URLs, dicts, and directories
+  - read_model_metadata_bundle() for model.cubesmodel/ directories
+  - write_model_metadata_bundle() for exporting models
+  - Support dim_*.json, dimension_*.json, and cube_*.json file patterns
+  - Uses pathlib instead of os.path
+  - Handles Windows drive letter edge cases
+  - Typecheck passes with mypy --strict
+  - All tests pass
+
+**Files changed:**
+- src/cubes/metadata/io.py (new)
+- src/tests/metadata/test_io.py (new)
+- src/cubes/metadata/__init__.py (updated)
+- AGENTS.md (updated with new patterns)
+
+**Learnings for future iterations:**
+- Use `cast(dict[str, Any], json.load(f))` to satisfy mypy --strict when loading JSON
+- Model bundle files use regex pattern `^(dim|dimension|cube)_(.+?)\.json$` for matching
+- When implementing functions that can receive Path or str, convert to Path early
+- Windows drive letter paths have a single-character scheme when parsed by urlparse
+- Always return defensive copies or cast JSON loaded data for type safety
+- Tests for I/O operations should use tmp_path fixture for temporary directories
+- Bundle reading should search recursively (rglob) for dimension/cube files
+---

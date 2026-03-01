@@ -157,3 +157,57 @@ All model objects extend `ModelObject` which provides:
 - Test both base class and subclass behavior
 - Use mypy --strict for type checking
 - Use ruff for linting
+
+### Type Checking with mypy --strict
+
+When loading JSON, use `cast()` to satisfy mypy:
+
+```python
+from typing import Any, cast
+
+# Without cast: mypy error - Returning Any from function
+data = json.load(f)
+
+# With cast: satisfies mypy --strict
+data = cast(dict[str, Any], json.load(f))
+```
+
+### File I/O Patterns
+
+Always use `pathlib.Path` instead of `os.path`:
+
+```python
+from pathlib import Path
+
+# Good
+path = Path(source)
+if path.is_dir():
+    contents = path.read_text()
+
+# Bad
+if os.path.isdir(source):
+    with open(source) as f:
+        contents = f.read()
+```
+
+### Model Bundle Conventions
+
+Model bundles (`*.cubesmodel/`) use these file patterns:
+
+- `model.json` - Main model metadata file
+- `dim_*.json` or `dimension_*.json` - Dimension definitions
+- `cube_*.json` - Cube definitions
+
+When writing bundles, dimensions and cubes are extracted from the metadata and written to separate files, leaving only core model properties in `model.json`.
+
+### Windows Path Edge Cases
+
+Windows drive letters (e.g., `C:\path`) are parsed as URL schemes with single character. Handle this explicitly:
+
+```python
+parsed = urlparse(url)
+if len(parsed.scheme) == 1:
+    # Windows drive letter - treat as local file path
+    with open(url, encoding='utf-8') as f:
+        return json.load(f)
+```
