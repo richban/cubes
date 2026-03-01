@@ -2,6 +2,39 @@
 Started: Sun Mar  1 12:10:01 CET 2026
 ---
 
+## Sun Mar 02 2026 18:00:00 CET - US-023
+Session: [Not shared]
+- Implemented StaticModelProvider in src/cubes/metadata/static_provider.py
+- Created comprehensive tests in src/tests/metadata/test_static_provider.py (33 test cases)
+- All acceptance criteria met:
+  - StaticModelProvider extends MetadataProvider base class
+  - Constructor accepts dict, string path, Path object, or None
+  - Supports model bundle directories (.cubesmodel)
+  - list_cubes() returns list of cube summary dicts with name, label, category, info
+  - has_cube() checks for cube existence
+  - cube() retrieves Cube objects with caching
+  - dimension() retrieves Dimension objects with caching and template support
+  - Inherits clear_cache() from MetadataProvider base class
+  - All 33 tests pass including edge cases and error handling
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/static_provider.py (new, 246 lines)
+- src/cubes/metadata/__init__.py (added StaticModelProvider export)
+- src/tests/metadata/test_static_provider.py (new, 33 tests)
+- ralph/prd.json (updated US-023 passes: true)
+- ralph/progress.txt (this entry)
+
+**Learnings for future iterations:**
+- StaticModelProvider uses read_model_metadata() and read_model_metadata_bundle() from io module
+- Supports all three initialization patterns: dict, file path, and bundle directory
+- Dimension and cube caches are inherited from MetadataProvider base class
+- cube() method builds dimensions dict from available dimensions before calling Cube.from_schema()
+- Dimension linking happens automatically in Cube.from_schema() via link_dimension()
+- Tests should use cube.dimensions_list (property) not cube.dimensions (dataclass field)
+- When dimensions are added to a cube, they go into _dimensions dict, not the dimensions field
+---
+
 ## Sun Mar 02 2026 17:00:00 CET - US-021
 Session: [Not shared]
 - Implemented Dimension Link Expansion utilities in src/cubes/metadata/schemas/cube.py
