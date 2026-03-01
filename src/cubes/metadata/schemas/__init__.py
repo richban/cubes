@@ -3,6 +3,8 @@
 from cubes.metadata.schemas.attributes import (
     AttributeInput,
     AttributeSchema,
+    MeasureAggregateInput,
+    MeasureAggregateSchema,
     MeasureInput,
     MeasureSchema,
 )
@@ -12,4 +14,6 @@ __all__ = [
     "AttributeInput",
     "MeasureSchema",
     "MeasureInput",
+    "MeasureAggregateSchema",
+    "MeasureAggregateInput",
 ]

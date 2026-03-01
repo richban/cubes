@@ -308,3 +308,164 @@ MeasureInput = Annotated[
     MeasureSchema,
     BeforeValidator(_coerce_string_to_attribute_dict),
 ]
+
+
+class MeasureAggregateSchema(AttributeSchema):
+    """Pydantic schema for validating measure aggregate metadata.
+
+    This schema extends AttributeSchema with aggregate-specific fields
+    for function, formula, measure reference, and nonadditive behavior.
+    Enforces mutual exclusivity between measure and expression.
+
+    Attributes:
+        function: Aggregation function name (e.g., "sum", "count", optional).
+        formula: Name of a formula for the aggregate (optional).
+        measure: Name of the measure being aggregated (optional).
+        nonadditive: Non-additivity type: "none", "all", or "time" (optional).
+        window_size: Size of rolling window for time-based aggregations (optional).
+    """
+
+    model_config = ConfigDict(
+        # Allow extra fields for forward compatibility
+        extra="allow",
+        # Validate assignments to catch errors early
+        validate_assignment=True,
+        # Don't allow mutation after creation
+        frozen=False,
+    )
+
+    function: Optional[str] = Field(
+        None, description="Aggregation function name (e.g., sum, count)"
+    )
+    formula: Optional[str] = Field(
+        None, description="Name of a formula for the aggregate"
+    )
+    measure: Optional[str] = Field(
+        None, description="Name of the measure being aggregated"
+    )
+    nonadditive: Optional[Literal["none", "all", "time"]] = Field(
+        None, description="Non-additivity type: none, all, or time"
+    )
+    window_size: Optional[int] = Field(
+        None, description="Size of rolling window for time-based aggregations"
+    )
+
+    @classmethod
+    def model_validate(
+        cls,
+        obj: Any,
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> "MeasureAggregateSchema":
+        """Validate and create a MeasureAggregateSchema instance.
+
+        Supports string inputs by coercing them to {"name": string} dicts.
+
+        Args:
+            obj: Input object, can be dict, string, or MeasureAggregateSchema instance.
+            strict: Whether to enforce strict validation.
+            from_attributes: Whether to extract data from object attributes.
+            context: Additional context for validation.
+            **kwargs: Additional arguments passed to parent class.
+
+        Returns:
+            Validated MeasureAggregateSchema instance.
+        """
+        # Coerce string to dict before validation
+        if isinstance(obj, str):
+            obj = {"name": obj}
+        result = super().model_validate(
+            obj,
+            strict=strict,
+            from_attributes=from_attributes,
+            context=context,
+            **kwargs,
+        )
+        # Cast to MeasureAggregateSchema since mypy doesn't understand super() returns subclass
+        return result  # type: ignore[return-value]
+
+    @field_validator("nonadditive", mode="before")
+    @classmethod
+    def _normalize_nonadditive(cls, value: Any) -> Any:
+        """Normalize nonadditive value to standard form.
+
+        Handles normalization:
+        - "none" -> None (fully additive)
+        - "all", "any" -> "all"
+        - "time" -> "time"
+
+        Args:
+            value: Raw nonadditive value from input.
+
+        Returns:
+            Normalized nonadditive string or None.
+
+        Raises:
+            ValueError: If nonadditive value is not recognized.
+        """
+        if value is None:
+            return None
+
+        if not isinstance(value, str):
+            raise ValueError(
+                f"Nonadditive must be a string, got {type(value).__name__}"
+            )
+
+        lower_value = value.lower()
+
+        if lower_value == "none":
+            return None
+        elif lower_value in ["all", "any"]:
+            return "all"
+        elif lower_value == "time":
+            return "time"
+        else:
+            raise ValueError(
+                f"Unknown non-additive type '{value}'. "
+                "Must be 'none', 'all', 'any', or 'time'."
+            )
+
+    @model_validator(mode="after")
+    def _validate_measure_expression_mutual_exclusivity(
+        self,
+    ) -> "MeasureAggregateSchema":
+        """Validate that measure and expression are mutually exclusive.
+
+        An aggregate can have either a measure (with optional function) OR an
+        expression, but not both. This is a fundamental constraint of the
+        aggregate model.
+
+        Raises:
+            ValueError: If both measure and expression are set.
+        """
+        if self.measure and self.expression:
+            raise ValueError(
+                f"Aggregate '{self.name}' cannot have both 'measure' and 'expression' set. "
+                "An aggregate can either aggregate a measure OR compute an expression, "
+                "but not both."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_function(self) -> "MeasureAggregateSchema":
+        """Validate that function name is supported if set.
+
+        Raises:
+            ValueError: If function is not in supported aggregation functions.
+        """
+        if self.function and self.function not in SUPPORTED_AGGREGATE_FUNCTIONS:
+            raise ValueError(
+                f"Unsupported aggregate function '{self.function}'. "
+                f"Supported: {', '.join(sorted(SUPPORTED_AGGREGATE_FUNCTIONS))}"
+            )
+        return self
+
+
+# Type alias for measure aggregates that can be strings or full schemas
+MeasureAggregateInput = Annotated[
+    MeasureAggregateSchema,
+    BeforeValidator(_coerce_string_to_attribute_dict),
+]

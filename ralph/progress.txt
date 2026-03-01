@@ -205,3 +205,59 @@ Session: [Not shared]
 - Default aggregates for measures should be ["sum"] if not specified (matches legacy)
 - Extra fields allowed (forward compatibility) via ConfigDict(extra="allow")
 ---
+
+## Sun Mar 01 2026 17:30:00 CET - US-008
+Session: [Not shared]
+- Implemented Measure and MeasureAggregate domain dataclasses in src/cubes/metadata/models/attributes.py
+- Created comprehensive tests in src/tests/metadata/test_measure.py (57 test cases)
+- All acceptance criteria met:
+  - Measure extends AttributeBase with formula, aggregates, nonadditive, window_size
+  - default_aggregates() generates MeasureAggregate objects for each aggregate function
+  - Identity aggregate magic string handled (name=measure, measure=None, function=None)
+  - Nonadditive normalized: "none" -> None, "all"/"any" -> "all", "time" -> "time"
+  - Both classes implement __deepcopy__, __eq__, __hash__, to_dict methods
+  - MeasureAggregate has is_base property and dependencies property with mutual exclusivity check
+  - All 57 tests pass
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/models/attributes.py (added Measure and MeasureAggregate classes)
+- src/cubes/metadata/models/__init__.py (updated exports)
+- src/tests/metadata/test_measure.py (new, 57 tests)
+
+**Learnings for future iterations:**
+- Measure.default_aggregates() generates MeasureAggregate objects with inherited properties from the measure
+- Identity aggregate is special: name=measure.name, measure=None, function=None (for backend-provided identity)
+- Normal aggregates use pattern: name="{measure}_{function}", measure=measure.name, function=function_name
+- MeasureAggregate.dependencies raises ModelError if both measure and expression are set (mutual exclusivity)
+- When extending dataclasses with additional fields, always update __eq__ to compare new fields
+- deepcopy should preserve all properties including ref and create new instances of mutable fields
+- MeasureAggregate.is_base returns True only when BOTH expression AND function are falsy
+- Type annotations for list fields should use `list[str]` (not `List[str]`) for Python 3.9+
+---
+
+## Sun Mar 01 2026 18:00:00 CET - US-009
+Session: [Not shared]
+- Implemented MeasureAggregateSchema Pydantic schema in src/cubes/metadata/schemas/attributes.py
+- Created comprehensive tests in src/tests/metadata/test_measure_aggregate_schema.py (29 test cases)
+- All acceptance criteria met:
+  - Schema with all fields: name, label, function, formula, measure, expression, nonadditive, window_size
+  - @model_validator(mode="after") enforces mutual exclusivity of measure and expression
+  - Function name validation against SUPPORTED_AGGREGATE_FUNCTIONS
+  - String coercion support for simple aggregate names
+  - Nonadditive normalization (none->None, all/any->all, time->time)
+  - All 29 tests pass
+  - Typecheck passes with mypy --strict
+
+**Files changed:**
+- src/cubes/metadata/schemas/attributes.py (added MeasureAggregateSchema, MeasureAggregateInput)
+- src/cubes/metadata/schemas/__init__.py (updated exports)
+- src/tests/metadata/test_measure_aggregate_schema.py (new, 29 tests)
+
+**Learnings for future iterations:**
+- Reuse _normalize_nonadditive validator from MeasureSchema by copying the method (DRY not possible with Pydantic validators)
+- Mutual exclusivity validation in @model_validator(mode="after") provides clear error messages
+- Identity aggregate pattern: name=measure_name, measure=None, function=None (backend-provided)
+- Regular aggregates use: name="{measure}_{function}", measure=measure_name, function=function_name
+- Both measure-only and expression-only aggregates are valid; having neither creates a base aggregate
+---
